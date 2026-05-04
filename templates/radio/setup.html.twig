@@ -1,0 +1,218 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}SRS FM — Setup{% endblock %}
+
+{% block stylesheets %}
+<link href="https://fonts.googleapis.com/css2?family=Raleway:wght@300;400;700;900&family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html, body {
+        min-height: 100%;
+        font-family: 'Lato', sans-serif;
+        background: #0a1929;
+        color: #fff;
+    }
+
+    .page {
+        max-width: 520px;
+        margin: 0 auto;
+        padding: 3rem 1.5rem;
+    }
+
+    .header {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        margin-bottom: 2.5rem;
+    }
+
+    .back {
+        color: rgba(255,255,255,0.4);
+        text-decoration: none;
+        font-size: 0.85rem;
+        letter-spacing: 0.05em;
+        transition: color 0.15s;
+    }
+    .back:hover { color: #fff; }
+
+    h1 {
+        font-family: 'Raleway', sans-serif;
+        font-size: 1.6rem;
+        font-weight: 900;
+    }
+
+    .subtitle {
+        font-size: 0.8rem;
+        color: rgba(255,255,255,0.35);
+        letter-spacing: 0.25em;
+        text-transform: uppercase;
+        font-weight: 700;
+        margin-bottom: 0.4rem;
+    }
+
+    .card {
+        background: rgba(255,255,255,0.04);
+        border: 1px solid rgba(255,255,255,0.07);
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 1.25rem;
+    }
+
+    .card-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        font-size: 1.3rem;
+    }
+
+    .icon-spotify { background: #1db954; }
+    .icon-sonos   { background: #144b7c; }
+
+    .card-body {
+        flex: 1;
+    }
+
+    .card-title {
+        font-family: 'Raleway', sans-serif;
+        font-weight: 700;
+        font-size: 1rem;
+        margin-bottom: 0.2rem;
+    }
+
+    .card-desc {
+        font-size: 0.8rem;
+        color: rgba(255,255,255,0.4);
+        line-height: 1.5;
+    }
+
+    .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.25rem 0.65rem;
+        border-radius: 999px;
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+        white-space: nowrap;
+    }
+
+    .badge-ok {
+        background: rgba(29,185,84,0.15);
+        color: #1db954;
+        border: 1px solid rgba(29,185,84,0.3);
+    }
+
+    .badge-error {
+        background: rgba(255,90,90,0.12);
+        color: #ff6b6b;
+        border: 1px solid rgba(255,90,90,0.25);
+    }
+
+    .badge-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: currentColor;
+    }
+
+    .btn {
+        display: inline-block;
+        padding: 0.55rem 1.1rem;
+        border-radius: 8px;
+        font-size: 0.82rem;
+        font-weight: 700;
+        text-decoration: none;
+        letter-spacing: 0.03em;
+        transition: opacity 0.15s;
+        margin-top: 0.9rem;
+    }
+    .btn:hover { opacity: 0.85; }
+
+    .btn-spotify { background: #1db954; color: #000; }
+    .btn-sonos   { background: #2ea3f2; color: #000; }
+
+    .hint {
+        font-size: 0.75rem;
+        color: rgba(255,255,255,0.25);
+        margin-top: 2rem;
+        line-height: 1.6;
+    }
+
+    .hint code {
+        background: rgba(255,255,255,0.06);
+        padding: 0.1em 0.35em;
+        border-radius: 4px;
+        font-family: monospace;
+    }
+</style>
+{% endblock %}
+
+{% block body %}
+<div class="page">
+
+    <div class="header">
+        <a href="/" class="back">← terug</a>
+    </div>
+
+    <div class="subtitle">SRS FM</div>
+    <h1 style="margin-bottom:2rem">Verbindingen</h1>
+
+    {# ── Spotify ── #}
+    <div class="card">
+        <div class="card-icon icon-spotify">♫</div>
+        <div class="card-body">
+            <div class="card-title">Spotify</div>
+            <div class="card-desc">Nummers ophalen, afspeelstatus volgen en DJ-tekst genereren.</div>
+            {% if spotify_connected %}
+                <div style="margin-top:0.75rem">
+                    <span class="badge badge-ok"><span class="badge-dot"></span>Verbonden</span>
+                </div>
+                <a href="/spotify/connect" class="btn btn-spotify" style="margin-top:0.75rem">Opnieuw verbinden</a>
+            {% else %}
+                <div style="margin-top:0.75rem">
+                    <span class="badge badge-error"><span class="badge-dot"></span>Niet verbonden</span>
+                </div>
+                <a href="/spotify/connect" class="btn btn-spotify">Spotify verbinden</a>
+            {% endif %}
+        </div>
+    </div>
+
+    {# ── Sonos ── #}
+    <div class="card">
+        <div class="card-icon icon-sonos">◎</div>
+        <div class="card-body">
+            <div class="card-title">Sonos Cloud API</div>
+            <div class="card-desc">Afspelen op PHPSD via de Sonos Cloud API (fallback: UPnP).</div>
+            {% if sonos_connected %}
+                <div style="margin-top:0.75rem">
+                    <span class="badge badge-ok"><span class="badge-dot"></span>Verbonden</span>
+                </div>
+                <a href="/sonos/connect" class="btn btn-sonos" style="margin-top:0.75rem">Opnieuw verbinden</a>
+            {% else %}
+                <div style="margin-top:0.75rem">
+                    <span class="badge badge-error"><span class="badge-dot"></span>Niet verbonden</span>
+                </div>
+                <a href="/sonos/connect" class="btn btn-sonos">Sonos verbinden</a>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="hint">
+        <strong>Sonos redirect URI</strong> — zorg dat
+        <code>https://srs-radio-dev/sonos/callback</code>
+        is ingesteld in het
+        <a href="https://developer.sonos.com" style="color:rgba(255,255,255,0.45)">Sonos developer portal</a>
+        onder jouw integratie &rarr; Redirect URIs. Daarna werkt de OAuth-flow direct.
+    </div>
+
+</div>
+{% endblock %}

@@ -19,5 +19,75 @@ services:
     App\:
         resource: '../src/'
 
-    # add more service definitions when explicit configuration is needed
-    # please note that last definitions always *replace* previous ones
+    App\Service\DjScriptService:
+        arguments:
+            $groqApiKey: '%env(GROQ_API_KEY)%'
+
+    App\Service\SpotifyService:
+        arguments:
+            $clientId: '%env(SPOTIFY_CLIENT_ID)%'
+            $clientSecret: '%env(SPOTIFY_CLIENT_SECRET)%'
+
+    App\Service\SonosService:
+        arguments:
+            $sonosIp: '%env(SONOS_IP)%'
+            $spotifySnOverride: '%env(int:SONOS_SPOTIFY_SN)%'
+
+    App\Controller\SpotifyAuthController:
+        arguments:
+            $clientId: '%env(SPOTIFY_CLIENT_ID)%'
+            $clientSecret: '%env(SPOTIFY_CLIENT_SECRET)%'
+            $redirectUri: '%env(SPOTIFY_REDIRECT_URI)%'
+
+    App\Service\SonosApiService:
+        arguments:
+            $clientId: '%env(SONOS_CLIENT_ID)%'
+            $clientSecret: '%env(SONOS_CLIENT_SECRET)%'
+
+    App\Controller\SonosAuthController:
+        arguments:
+            $clientId: '%env(SONOS_CLIENT_ID)%'
+            $clientSecret: '%env(SONOS_CLIENT_SECRET)%'
+            $redirectUri: '%env(SONOS_REDIRECT_URI)%'
+
+    App\Command\RadioStartCommand:
+        arguments:
+            $projectDir:        '%kernel.project_dir%'
+            $spotifyDeviceName: '%env(SPOTIFY_DEVICE_NAME)%'
+            $weatherHour:       '%env(int:WEATHER_HOUR)%'
+            $weatherMinute:     '%env(int:WEATHER_MINUTE)%'
+
+    App\Service\TextToSpeechService:
+        arguments:
+            $projectDir:    '%kernel.project_dir%'
+            $serverBaseUrl: '%env(DJ_SERVER_URL)%'
+            $voice:         '%env(DJ_VOICE)%'
+            $bedFile:       '%env(DJ_BED_FILE)%'
+            $bedVol:        '%env(float:DJ_BED_VOLUME)%'
+
+    App\Service\RadioStateService:
+        arguments:
+            $projectDir: '%kernel.project_dir%'
+
+    App\Controller\RadioController:
+        arguments:
+            $jiraAlarmAccount: '%env(JIRA_ALARM_ACCOUNT)%'
+            $jiraAlarmLabels:  '%env(JIRA_ALARM_LABELS)%'
+
+    App\Service\JiraService:
+        arguments:
+            $host:  '%env(JIRA_HOST)%'
+            $user:  '%env(JIRA_USER)%'
+            $token: '%env(JIRA_TOKEN)%'
+
+    App\Command\JiraMonitorCommand:
+        arguments:
+            $alarmClipUrl: '%env(JIRA_ALARM_CLIP_URL)%'
+            $alarmLabels:  '%env(JIRA_ALARM_LABELS)%'
+            $alarmAccount: '%env(JIRA_ALARM_ACCOUNT)%'
+
+    App\Service\WeatherService:
+        arguments:
+            $apiKey:   '%env(WEATHER_API_KEY)%'
+            $location: '%env(WEATHER_LOCATION)%'
+

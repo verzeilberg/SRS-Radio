@@ -1,0 +1,844 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}{{ station }}{% endblock %}
+
+{% block stylesheets %}
+<link href="https://fonts.googleapis.com/css2?family=Raleway:wght@300;400;700;900&family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html, body {
+        height: 100%;
+        overflow: hidden;
+        font-family: 'Lato', sans-serif;
+        color: #fff;
+        background: #0a1929;
+    }
+
+    .split {
+        display: flex;
+        height: 100vh;
+    }
+
+    .panel-left {
+        flex: 1;
+        background: #144b7c;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem 4rem;
+        gap: clamp(0.6rem, 1.8vh, 2.25rem);
+        overflow: hidden;
+    }
+
+    .panel-right {
+        width: 50%;
+        background: #0a1929;
+    }
+
+    .panel-right.hidden {
+        display: none;
+    }
+
+    .top {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.6rem;
+    }
+
+    .logo {
+        height: clamp(60px, 10vh, 110px);
+        filter: brightness(0) invert(1);
+    }
+
+    .station {
+        font-family: 'Raleway', sans-serif;
+        font-size: 1.6rem;
+        font-weight: 700;
+        letter-spacing: 0.4em;
+        text-transform: uppercase;
+        color: rgba(255,255,255,0.45);
+    }
+
+    .eq-row {
+        display: flex;
+        align-items: flex-end;
+        width: 90%;
+        gap: 1.5rem;
+    }
+
+    .eq-unit {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.55rem;
+    }
+
+    .eq-unit svg {
+        width: 100%;
+        height: auto;
+        display: block;
+    }
+
+    .eq-label {
+        font-family: 'Raleway', sans-serif;
+        font-size: 0.65rem;
+        font-weight: 700;
+        letter-spacing: 0.3em;
+        text-transform: uppercase;
+        color: rgba(255,255,255,0.3);
+    }
+
+    .middle {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        width: 100%;
+    }
+
+    .track-info {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
+        text-align: left;
+    }
+
+    .track {
+        font-family: 'Raleway', sans-serif;
+        font-size: clamp(1.3rem, 3vh, 2.4rem);
+        font-weight: 900;
+        color: #ffffff;
+        line-height: 1.15;
+        transition: opacity 0.4s ease;
+    }
+
+    .artist {
+        font-size: 1.1rem;
+        font-weight: 300;
+        color: #2ea3f2;
+        letter-spacing: 0.04em;
+        transition: opacity 0.4s ease;
+    }
+
+    .progress-wrap {
+        width: 100%;
+    }
+
+    .progress-track {
+        height: 5px;
+        background: rgba(255,255,255,0.12);
+        border-radius: 3px;
+        overflow: hidden;
+        width: 100%;
+        margin-bottom: 0.5rem;
+    }
+
+    .progress-bar {
+        height: 100%;
+        background: #2ea3f2;
+        border-radius: 2px;
+        width: 0%;
+        transition: width 1s linear;
+    }
+
+    .progress-times {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.9rem;
+        color: rgba(255,255,255,0.45);
+        font-variant-numeric: tabular-nums;
+        letter-spacing: 0.03em;
+    }
+
+    .on-air {
+        position: fixed;
+        bottom: 1.25rem;
+        left: 1.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        font-size: 0.7rem;
+        letter-spacing: 0.25em;
+        text-transform: uppercase;
+        color: rgba(255,255,255,0.35);
+        font-weight: 300;
+        z-index: 10;
+    }
+
+    .on-air-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: #2ea3f2;
+        flex-shrink: 0;
+        animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    .on-air-dot.inactive {
+        background: rgba(255,255,255,0.2);
+        animation: none;
+    }
+
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50%       { opacity: 0.15; }
+    }
+
+    .dj-text {
+        font-size: 1.05rem;
+        line-height: 1.85;
+        color: rgba(255,255,255,0.4);
+        font-style: italic;
+        font-weight: 300;
+        max-width: 440px;
+        transition: opacity 0.4s ease;
+    }
+
+    .countdown-block {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.4rem;
+    }
+
+    .countdown {
+        font-family: 'Raleway', sans-serif;
+        font-size: 3.5rem;
+        font-weight: 900;
+        color: #2ea3f2;
+        letter-spacing: 0.05em;
+    }
+
+    .countdown-label {
+        font-size: 0.7rem;
+        color: rgba(255,255,255,0.3);
+        text-transform: uppercase;
+        letter-spacing: 0.2em;
+        font-weight: 700;
+    }
+
+    .setup-link {
+        position: fixed;
+        bottom: 1.25rem;
+        right: 1.5rem;
+        font-size: 0.7rem;
+        color: rgba(255,255,255,0.2);
+        text-decoration: none;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        transition: color 0.2s;
+    }
+    .setup-link:hover { color: rgba(255,255,255,0.6); }
+
+    /* ── Right panel: Jira alerts ── */
+    .panel-right {
+        display: flex;
+        flex-direction: column;
+        padding: 2.5rem 2rem;
+        overflow-y: auto;
+    }
+
+    .jira-header {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .jira-header-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #ff4d4d;
+        flex-shrink: 0;
+        animation: pulse-red 1.6s ease-in-out infinite;
+    }
+
+    @keyframes pulse-red {
+        0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(255,77,77,0.5); }
+        50%       { opacity: 0.6; box-shadow: 0 0 0 6px rgba(255,77,77,0); }
+    }
+
+    .jira-header-label {
+        font-family: 'Raleway', sans-serif;
+        font-size: 1.6rem;
+        font-weight: 900;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: rgba(255,255,255,0.85);
+    }
+
+    .jira-empty {
+        font-size: 0.85rem;
+        color: rgba(255,255,255,0.2);
+        font-style: italic;
+        margin-top: 0.5rem;
+    }
+
+    .jira-ticket {
+        background: rgba(255,77,77,0.07);
+        border: 1px solid rgba(255,77,77,0.18);
+        border-left: 3px solid #ff4d4d;
+        border-radius: 8px;
+        padding: 1rem 1.1rem;
+        margin-bottom: 0.75rem;
+        animation: slide-in 0.35s ease;
+    }
+
+    @keyframes slide-in {
+        from { opacity: 0; transform: translateX(16px); }
+        to   { opacity: 1; transform: translateX(0); }
+    }
+
+    .jira-key {
+        font-size: 0.7rem;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        color: #ff6b6b;
+        text-transform: uppercase;
+        margin-bottom: 0.35rem;
+    }
+
+    .jira-summary {
+        font-size: 0.9rem;
+        font-weight: 400;
+        color: rgba(255,255,255,0.85);
+        line-height: 1.4;
+        margin-bottom: 0.4rem;
+    }
+
+    .jira-status {
+        display: inline-block;
+        font-size: 0.68rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: rgba(255,255,255,0.3);
+    }
+</style>
+{% endblock %}
+
+{% block body %}
+<div class="split">
+
+    <div class="panel-left">
+
+        <div class="top">
+            <img src="/images/srs-logo.svg" alt="SRS" class="logo">
+            <div class="station">FM</div>
+        </div>
+
+        <div class="eq-row">
+            <div class="eq-unit">
+                <svg id="eq-low" viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <clipPath id="hex-clip-low"><polygon points="150,17 283,83 283,217 150,283 17,217 17,83"/></clipPath>
+                        <filter id="glow-low" x="-20%" y="-20%" width="140%" height="140%">
+                            <feGaussianBlur stdDeviation="3.5" result="blur"/>
+                            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+                        </filter>
+                    </defs>
+                    <polygon points="150,17 283,83 283,217 150,283 17,217 17,83" fill="#060f1a"/>
+                    <g id="eq-facets-low" clip-path="url(#hex-clip-low)"></g>
+                    <polygon points="150,17 283,83 283,217 150,283 17,217 17,83" fill="none" stroke="#f97316" stroke-width="2.5" filter="url(#glow-low)" opacity="0.8"/>
+                    <polygon points="150,17 283,83 283,217 150,283 17,217 17,83" fill="none" stroke="#fdba74" stroke-width="1" opacity="0.5"/>
+                </svg>
+            </div>
+            <div class="eq-unit">
+                <svg id="eq-mid" viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <clipPath id="hex-clip-mid"><polygon points="150,17 283,83 283,217 150,283 17,217 17,83"/></clipPath>
+                        <filter id="glow-mid" x="-20%" y="-20%" width="140%" height="140%">
+                            <feGaussianBlur stdDeviation="3.5" result="blur"/>
+                            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+                        </filter>
+                    </defs>
+                    <polygon points="150,17 283,83 283,217 150,283 17,217 17,83" fill="#060f1a"/>
+                    <g id="eq-facets-mid" clip-path="url(#hex-clip-mid)"></g>
+                    <polygon points="150,17 283,83 283,217 150,283 17,217 17,83" fill="none" stroke="#4ade80" stroke-width="2.5" filter="url(#glow-mid)" opacity="0.8"/>
+                    <polygon points="150,17 283,83 283,217 150,283 17,217 17,83" fill="none" stroke="#86efac" stroke-width="1" opacity="0.5"/>
+                </svg>
+            </div>
+            <div class="eq-unit">
+                <svg id="eq-high" viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <clipPath id="hex-clip-high"><polygon points="150,17 283,83 283,217 150,283 17,217 17,83"/></clipPath>
+                        <filter id="glow-high" x="-20%" y="-20%" width="140%" height="140%">
+                            <feGaussianBlur stdDeviation="3.5" result="blur"/>
+                            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+                        </filter>
+                    </defs>
+                    <polygon points="150,17 283,83 283,217 150,283 17,217 17,83" fill="#060f1a"/>
+                    <g id="eq-facets-high" clip-path="url(#hex-clip-high)"></g>
+                    <polygon points="150,17 283,83 283,217 150,283 17,217 17,83" fill="none" stroke="#2ea3f2" stroke-width="2.5" filter="url(#glow-high)" opacity="0.8"/>
+                    <polygon points="150,17 283,83 283,217 150,283 17,217 17,83" fill="none" stroke="#7dd4fc" stroke-width="1" opacity="0.5"/>
+                </svg>
+            </div>
+        </div>
+
+        <div class="middle" id="block-playing" style="display:none">
+            <div style="display:flex;align-items:center;gap:1.5rem;width:100%;">
+                <div class="track-info">
+                    <div class="track" id="track">—</div>
+                    <div class="artist" id="artist">—</div>
+                </div>
+                <img id="album-art" src="" alt="" style="display:none;width:clamp(80px,13vh,150px);height:clamp(80px,13vh,150px);object-fit:cover;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.5);flex-shrink:0;transition:opacity 0.4s ease;">
+            </div>
+            <div class="progress-wrap">
+                <div class="progress-track">
+                    <div class="progress-bar" id="progress-bar"></div>
+                </div>
+                <div class="progress-times">
+                    <span id="time-elapsed">0:00</span>
+                    <span id="time-remaining">-0:00</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="middle" id="block-countdown" style="display:none">
+            <div class="countdown-block">
+                <div class="countdown" id="countdown">--:--:--</div>
+                <div class="countdown-label" id="countdown-label">start om --:--</div>
+            </div>
+        </div>
+
+        <div class="dj-text" id="dj-text"></div>
+        <div id="next-track-wrap" style="display:none;margin-top:0.6rem;text-align:center;opacity:0.55;font-size:1rem;letter-spacing:0.04em;">
+            <span style="text-transform:uppercase;font-size:0.7rem;letter-spacing:0.12em;opacity:0.7;">Straks</span><br>
+            <span id="next-track-title" style="font-weight:600;"></span>
+            <span style="opacity:0.6;"> — </span>
+            <span id="next-track-artist"></span>
+        </div>
+
+    </div>
+
+    <div class="panel-right hidden" id="panel-right">
+        <div class="jira-header">
+            <span class="jira-header-dot" id="jira-dot" style="animation:none;background:rgba(255,255,255,0.15)"></span>
+            <span class="jira-header-label">Highest Priority Ticket</span>
+        </div>
+        <div id="jira-list"><span class="jira-empty">Laden…</span></div>
+    </div>
+
+</div>
+
+<div class="on-air">
+    <span class="on-air-dot inactive" id="dot"></span>
+    <span id="on-air-label">verbinden…</span>
+</div>
+
+<div id="tune-in-overlay" style="position:fixed;inset:0;background:rgba(10,25,41,0.92);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.5rem;z-index:200;backdrop-filter:blur(4px);">
+    <img src="/images/srs-logo.svg" alt="SRS FM" style="height:80px;filter:brightness(0) invert(1);opacity:0.9;">
+    <button onclick="tuneIn()" style="background:#2ea3f2;color:#fff;border:none;border-radius:2rem;padding:0.85rem 2.5rem;font-size:1rem;font-family:'Raleway',sans-serif;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;cursor:pointer;">
+        ▶ Tune in
+    </button>
+</div>
+
+<a href="/setup" class="setup-link">⚙ verbindingen</a>
+
+<script>
+let scheduledStartAt = null; // 'HH:MM' from API, or null
+let currentDjClipUrl = null;
+let audioUnlocked    = false;
+
+function tuneIn() {
+    audioUnlocked = true;
+    document.getElementById('tune-in-overlay').style.display = 'none';
+}
+
+function fadeUpdate(el, newText) {
+    if (el.textContent === newText) return;
+    el.style.opacity = '0';
+    setTimeout(() => {
+        el.textContent = newText;
+        el.style.opacity = '1';
+    }, 400);
+}
+
+function rampVolume(audio, from, to, durationMs) {
+    const steps    = 30;
+    const interval = durationMs / steps;
+    const diff     = (to - from) / steps;
+    let step = 0;
+    const timer = setInterval(() => {
+        step++;
+        audio.volume = Math.max(0, Math.min(1, from + diff * step));
+        if (step >= steps) clearInterval(timer);
+    }, interval);
+}
+
+let djAudio = null;
+
+function playDjClip(url) {
+    if (!audioUnlocked) return;
+    if (djAudio) { djAudio.pause(); djAudio = null; }
+
+    // Stop tick-based progress so it doesn't fight with timeupdate
+    clearInterval(progressTimer);
+    progressTimer = null;
+
+    const path  = new URL(url, window.location.href).pathname;
+    const audio = new Audio(path);
+    djAudio = audio;
+    audio.volume = 0;
+
+    audio.addEventListener('loadedmetadata', () => {
+        // Use the real audio duration and reset to 0 so the bar starts clean
+        durationMs = Math.round(audio.duration * 1000);
+        progressMs = 0;
+        updateProgressUI();
+        const fadeOutAt = Math.max(0, audio.duration - 1.5);
+        setTimeout(() => rampVolume(audio, 1, 0, 1500), fadeOutAt * 1000);
+    });
+
+    audio.addEventListener('timeupdate', () => {
+        if (djAudio !== audio) return;
+        progressMs = Math.round(audio.currentTime * 1000);
+        updateProgressUI();
+    });
+
+    audio.addEventListener('ended', () => {
+        if (djAudio === audio) {
+            djAudio = null;
+            schedulePoll(500); // hand control back to normal track progress
+        }
+    });
+
+    audio.play().catch(() => { djAudio = null; });
+    rampVolume(audio, 0, 1, 1000);
+}
+
+let progressMs  = 0;
+let durationMs  = 0;
+let progressTimer = null;
+let isPlaying   = false;
+let lastTrack   = '';
+
+// ── Three-band hexagon visualiser ─────────────────────────────────────────
+const NS    = 'http://www.w3.org/2000/svg';
+const CX    = 150, CY = 150;
+const HEX_V = [[150,17],[283,83],[283,217],[150,283],[17,217],[17,83]];
+
+function midPt(a, b) { return [(a[0]+b[0])/2, (a[1]+b[1])/2]; }
+
+function subdivide(a, b, c, depth) {
+    if (depth === 0) return [[a, b, c]];
+    const mab = midPt(a,b), mbc = midPt(b,c), mac = midPt(a,c);
+    return [
+        ...subdivide(a,   mab, mac, depth-1),
+        ...subdivide(mab, b,   mbc, depth-1),
+        ...subdivide(mab, mbc, mac, depth-1),
+        ...subdivide(mac, mbc, c,   depth-1),
+    ];
+}
+
+function buildFacets() {
+    const f = [];
+    for (let i = 0; i < 6; i++)
+        f.push(...subdivide([CX,CY], HEX_V[i], HEX_V[(i+1)%6], 2));
+    return f;
+}
+
+function buildMeta(facets, speedMin, speedMax) {
+    const meta = facets.map(([a,b,c]) => {
+        const cx = (a[0]+b[0]+c[0]) / 3;
+        const cy = (a[1]+b[1]+c[1]) / 3;
+        return {
+            angle: Math.atan2(cy - CY, cx - CX),
+            dist:  Math.hypot(cx - CX, cy - CY),
+            phase: Math.random() * Math.PI * 2,
+            speed: speedMin + Math.random() * (speedMax - speedMin),
+        };
+    });
+    const maxDist = Math.max(...meta.map(m => m.dist)) || 1;
+    meta.forEach(m => m.dn = m.dist / maxDist);
+    return meta;
+}
+
+function buildPolys(groupId, facets) {
+    const group = document.getElementById(groupId);
+    return facets.map(([a,b,c]) => {
+        const p = document.createElementNS(NS, 'polygon');
+        p.setAttribute('points', `${a[0]},${a[1]} ${b[0]},${b[1]} ${c[0]},${c[1]}`);
+        p.setAttribute('stroke', '#060f1a');
+        p.setAttribute('stroke-width', '0.6');
+        group.appendChild(p);
+        return p;
+    });
+}
+
+// Build shared facet geometry (same shape, independent meta per band)
+const facets = buildFacets();
+
+const bands = [
+    {
+        polys: buildPolys('eq-facets-low', facets),
+        meta:  buildMeta(facets, 0.25, 0.7),
+        // Slow, deep waves — warm hues
+        wave: (t, dn, phase, speed) =>
+            Math.sin(t * speed * 0.7 + dn * 3.5 + phase)        * 0.55 +
+            Math.sin(t * speed * 1.3 + dn * 2.0 + phase * 1.2)  * 0.30 +
+            Math.sin(t * speed * 0.4 + phase * 0.6)              * 0.15,
+        hue: (baseHue, angleDeg, t) => (baseHue + 20 + angleDeg * 0.4 + t * 4) % 360,
+    },
+    {
+        polys: buildPolys('eq-facets-mid', facets),
+        meta:  buildMeta(facets, 0.6, 1.5),
+        // Medium waves — green/yellow hues
+        wave: (t, dn, phase, speed) =>
+            Math.sin(t * speed * 1.9 + dn * 6.0  + phase)        * 0.50 +
+            Math.sin(t * speed * 3.3 + dn * 3.5  + phase * 1.4)  * 0.30 +
+            Math.sin(t * speed * 0.8 + phase * 0.7)               * 0.20,
+        hue: (baseHue, angleDeg, t) => (baseHue + 120 + angleDeg * 0.6 + t * 8) % 360,
+    },
+    {
+        polys: buildPolys('eq-facets-high', facets),
+        meta:  buildMeta(facets, 1.4, 3.0),
+        // Fast, fine waves — cool blue/cyan hues
+        wave: (t, dn, phase, speed) =>
+            Math.sin(t * speed * 4.5 + dn * 11.0 + phase)        * 0.40 +
+            Math.sin(t * speed * 7.0 + dn * 6.0  + phase * 1.8)  * 0.35 +
+            Math.sin(t * speed * 2.5 + phase * 1.3)               * 0.25,
+        hue: (baseHue, angleDeg, t) => (baseHue + 200 + angleDeg * 0.5 + t * 14) % 360,
+    },
+];
+
+function trackToHue(name) {
+    let h = 0;
+    for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) & 0xffff;
+    return h % 360;
+}
+let baseHue = 210;
+
+function eqAnimate(ts) {
+    const t   = ts / 1000;
+    const amp = isPlaying ? 1 : 0.07;
+
+    for (const band of bands) {
+        band.polys.forEach((poly, i) => {
+            const { angle, dn, phase, speed } = band.meta[i];
+            const angleDeg  = (angle / (Math.PI * 2)) * 360;
+            const wave      = band.wave(t, dn, phase, speed);
+            const hue       = band.hue(baseHue, angleDeg, t);
+            const sat       = 60 + dn * 25;
+            const lightness = amp * (6 + (wave + 1) / 2 * 64);
+            poly.setAttribute('fill', `hsl(${hue},${sat}%,${lightness}%)`);
+        });
+    }
+
+    requestAnimationFrame(eqAnimate);
+}
+requestAnimationFrame(eqAnimate);
+// ──────────────────────────────────────────────────────────────────────────
+
+function updateCountdown() {
+    if (!scheduledStartAt) return;
+    const [sh, sm] = scheduledStartAt.split(':').map(Number);
+    const now   = new Date();
+    const start = new Date();
+    start.setHours(sh, sm, 0, 0);
+    const diff = Math.floor((start - now) / 1000);
+    if (diff <= 0) return;
+    const h = String(Math.floor(diff / 3600)).padStart(2,'0');
+    const m = String(Math.floor((diff % 3600) / 60)).padStart(2,'0');
+    const s = String(diff % 60).padStart(2,'0');
+    document.getElementById('countdown').textContent = `${h}:${m}:${s}`;
+}
+
+function fmtMs(ms) {
+    const totalSec = Math.max(0, Math.floor(ms / 1000));
+    const m = Math.floor(totalSec / 60);
+    const s = String(totalSec % 60).padStart(2, '0');
+    return `${m}:${s}`;
+}
+
+function updateProgressUI() {
+    if (durationMs <= 0) {
+        document.getElementById('progress-bar').style.width = '0%';
+        document.getElementById('time-elapsed').textContent   = '0:00';
+        document.getElementById('time-remaining').textContent = '-0:00';
+        return;
+    }
+    document.getElementById('progress-bar').style.width =
+        (progressMs / durationMs * 100) + '%';
+    document.getElementById('time-elapsed').textContent   = fmtMs(progressMs);
+    document.getElementById('time-remaining').textContent = '-' + fmtMs(durationMs - progressMs);
+}
+
+function tickProgress() {
+    if (djAudio) return; // audio element drives progress while DJ clip is playing
+    if (durationMs <= 0) return;
+    progressMs = Math.min(progressMs + 1000, durationMs);
+    updateProgressUI();
+    // Track reached end locally — poll immediately for the next track
+    if (progressMs >= durationMs) {
+        schedulePoll(500);
+    }
+}
+
+function setOnAir(playing) {
+    isPlaying = playing;
+    const dot   = document.getElementById('dot');
+    const label = document.getElementById('on-air-label');
+    if (playing) {
+        dot.classList.remove('inactive');
+        label.textContent = 'on air';
+    } else {
+        dot.classList.add('inactive');
+        label.textContent = 'wachten…';
+    }
+}
+
+async function poll() {
+    try {
+        const res  = await fetch('/api/now-playing');
+        const data = await res.json();
+
+        if (data.status === 'waiting' && data.start_at) {
+            scheduledStartAt = data.start_at;
+            document.getElementById('countdown-label').textContent = 'start om ' + data.start_at;
+            document.getElementById('block-countdown').style.display = 'flex';
+            document.getElementById('block-playing').style.display   = 'none';
+            document.getElementById('on-air-label').textContent = 'start om ' + data.start_at;
+            setOnAir(false);
+            return;
+        }
+
+        scheduledStartAt = null;
+        document.getElementById('block-countdown').style.display = 'none';
+        document.getElementById('block-playing').style.display   = 'flex';
+
+        // Sonos plays audio directly on the speaker — no browser audio unlock needed
+        if (!audioUnlocked && (data.playback_method === 'upnp' || data.playback_method === 'sonos_api')) {
+            audioUnlocked = true;
+            document.getElementById('tune-in-overlay').style.display = 'none';
+        }
+
+        const track  = data.track  || '—';
+        const artist = data.artist || '—';
+
+        fadeUpdate(document.getElementById('track'),   track);
+        fadeUpdate(document.getElementById('artist'),  artist);
+        fadeUpdate(document.getElementById('dj-text'), data.dj_text || '');
+
+        const albumImg = document.getElementById('album-art');
+        if (data.image && albumImg.dataset.src !== data.image) {
+            albumImg.dataset.src = data.image;
+            albumImg.style.opacity = '0';
+            setTimeout(() => {
+                albumImg.src = data.image;
+                albumImg.style.display = 'block';
+                albumImg.style.opacity = '1';
+            }, 400);
+        } else if (!data.image) {
+            albumImg.style.opacity = '0';
+            setTimeout(() => { albumImg.style.display = 'none'; }, 400);
+        }
+
+        if (data.dj_clip_url && data.dj_clip_url !== currentDjClipUrl) {
+            currentDjClipUrl = data.dj_clip_url;
+            playDjClip(data.dj_clip_url);
+        } else if (!data.dj_clip_url) {
+            currentDjClipUrl = null;
+        }
+
+        const nextWrap = document.getElementById('next-track-wrap');
+        if (data.next_track_title && data.status === 'playing') {
+            document.getElementById('next-track-title').textContent  = data.next_track_title;
+            document.getElementById('next-track-artist').textContent = data.next_track_artist || '';
+            nextWrap.style.display = 'block';
+        } else {
+            nextWrap.style.display = 'none';
+        }
+
+        if (track !== lastTrack) {
+            lastTrack = track;
+            baseHue   = trackToHue(track + artist);
+        }
+
+        setOnAir(data.is_playing);
+
+        // While a DJ clip is playing in the browser, the <audio> element drives
+        // progressMs/durationMs via timeupdate — don't let the server clock override it.
+        if (!djAudio) {
+            durationMs = data.duration_ms || 0;
+            progressMs = data.progress_ms || 0;
+            updateProgressUI();
+
+            clearInterval(progressTimer);
+            if (data.is_playing) progressTimer = setInterval(tickProgress, 1000);
+        }
+
+    } catch (e) {
+        setOnAir(false);
+    }
+}
+
+let pollTimer = null;
+
+function schedulePoll(delayMs) {
+    clearTimeout(pollTimer);
+    pollTimer = setTimeout(async () => {
+        await poll();
+        // If track is ending soon, poll fast; otherwise every 5s
+        const remaining = durationMs - progressMs;
+        schedulePoll(remaining > 0 && remaining < 15000 ? 2000 : 5000);
+    }, delayMs);
+}
+
+setInterval(updateCountdown, 1000);
+schedulePoll(0);
+
+// ── Jira highest-priority tickets ─────────────────────────────────────────
+let knownJiraKeys = null;
+
+async function pollJira() {
+    try {
+        const res     = await fetch('/api/jira-tickets');
+        const tickets = await res.json();
+        const panel   = document.getElementById('panel-right');
+        const dot     = document.getElementById('jira-dot');
+        const list    = document.getElementById('jira-list');
+
+        if (tickets.length === 0) {
+            panel.classList.add('hidden');
+            knownJiraKeys = [];
+            return;
+        }
+
+        panel.classList.remove('hidden');
+        dot.style.animation = '';
+        dot.style.background = '';
+
+        // Detect new tickets (after first load) and flash the panel
+        const currentKeys = tickets.map(t => t.key);
+        if (knownJiraKeys !== null) {
+            const hasNew = currentKeys.some(k => !knownJiraKeys.includes(k));
+            if (hasNew) {
+                list.style.animation = 'none';
+                list.offsetHeight; // reflow
+            }
+        }
+        knownJiraKeys = currentKeys;
+
+        list.innerHTML = tickets.map(t => `
+            <div class="jira-ticket">
+                <div class="jira-key">${t.key}</div>
+                <div class="jira-summary">${t.summary}</div>
+                <div class="jira-status">${t.status}</div>
+            </div>
+        `).join('');
+    } catch (e) {}
+}
+
+setInterval(pollJira, 30000);
+pollJira();
+// ──────────────────────────────────────────────────────────────────────────
+</script>
+{% endblock %}
