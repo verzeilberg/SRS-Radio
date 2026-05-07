@@ -85,6 +85,22 @@ class RadioStateService
         file_put_contents($this->statePath, json_encode($state));
     }
 
+    public function setBirthday(string $name, ?string $picture): void
+    {
+        $state = $this->getState();
+        $state['birthday_active']  = true;
+        $state['birthday_name']    = $name;
+        $state['birthday_picture'] = $picture;
+        file_put_contents($this->statePath, json_encode($state));
+    }
+
+    public function clearBirthday(): void
+    {
+        $state = $this->getState();
+        unset($state['birthday_active'], $state['birthday_name'], $state['birthday_picture']);
+        file_put_contents($this->statePath, json_encode($state));
+    }
+
     public function getState(): array
     {
         if (!file_exists($this->statePath)) {

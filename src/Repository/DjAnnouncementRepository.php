@@ -11,4 +11,16 @@ class DjAnnouncementRepository extends ServiceEntityRepository
     {
         parent::__construct($registry, DjAnnouncement::class);
     }
+
+    public function findRecentTexts(string $type, int $limit = 10): array
+    {
+        return $this->createQueryBuilder('a')
+            ->select('a.text')
+            ->where('a.type = :type')
+            ->setParameter('type', $type)
+            ->orderBy('a.playedAt', 'DESC')
+            ->setMaxResults($limit)
+            ->getQuery()
+            ->getSingleColumnResult();
+    }
 }

@@ -22,6 +22,7 @@ services:
     App\Service\DjScriptService:
         arguments:
             $groqApiKey: '%env(GROQ_API_KEY)%'
+            $language:   '%env(DJ_LANGUAGE)%'
 
     App\Service\SpotifyService:
         arguments:
@@ -50,20 +51,37 @@ services:
             $clientSecret: '%env(SONOS_CLIENT_SECRET)%'
             $redirectUri: '%env(SONOS_REDIRECT_URI)%'
 
+    App\Command\VolumeCommand:
+        arguments:
+            $djClipIp: '%env(DJ_CLIP_IP)%'
+
     App\Command\RadioStartCommand:
         arguments:
-            $projectDir:        '%kernel.project_dir%'
+            $projectDir: '%kernel.project_dir%'
             $spotifyDeviceName: '%env(SPOTIFY_DEVICE_NAME)%'
-            $weatherHour:       '%env(int:WEATHER_HOUR)%'
-            $weatherMinute:     '%env(int:WEATHER_MINUTE)%'
+            $weatherHour: '%env(int:WEATHER_HOUR)%'
+            $weatherMinute: '%env(int:WEATHER_MINUTE)%'
+            $djClipIp: '%env(DJ_CLIP_IP)%'
+            $trackPools:
+                - { id: '1VGeD6EPilAaVp79AdPhtE', label: 'Mega Hit Mix'}
+                - { id: '3Me8NYy0WVXf6ZGX9khgEq', label: 'All Out 80s' }
+                - { id: '6U7QcTtyipCtL17Su1bxgj', label: 'All Out 90s' }
+                - { id: '7eMpggGjI2UdYxmqMgWzfw', label: 'All Out 00s' }
+                - { id: '1t0F16J7AC0ajHmGv7ihsh', label: 'All Out 10s' }
+                - { id: '54i1eiCTqTbXnjSPRpWTu8', label: 'All Out 2020s' }
+                - { id: '1SlAib5BO2Bb90Auow2rOd', label: 'Koningsdag 2026'}
 
     App\Service\TextToSpeechService:
         arguments:
-            $projectDir:    '%kernel.project_dir%'
-            $serverBaseUrl: '%env(DJ_SERVER_URL)%'
-            $voice:         '%env(DJ_VOICE)%'
-            $bedFile:       '%env(DJ_BED_FILE)%'
-            $bedVol:        '%env(float:DJ_BED_VOLUME)%'
+            $projectDir:          '%kernel.project_dir%'
+            $serverBaseUrl:       '%env(DJ_SERVER_URL)%'
+            $provider:            '%env(DJ_TTS_PROVIDER)%'
+            $voice:               '%env(DJ_VOICE)%'
+            $bedFile:             '%env(DJ_BED_FILE)%'
+            $bedVol:              '%env(float:DJ_BED_VOLUME)%'
+            $piperModel:          '%env(DJ_PIPER_MODEL)%'
+            $elevenLabsApiKey:    '%env(ELEVENLABS_API_KEY)%'
+            $elevenLabsVoiceId:   '%env(ELEVENLABS_VOICE_ID)%'
 
     App\Service\RadioStateService:
         arguments:
@@ -72,22 +90,36 @@ services:
     App\Controller\RadioController:
         arguments:
             $jiraAlarmAccount: '%env(JIRA_ALARM_ACCOUNT)%'
-            $jiraAlarmLabels:  '%env(JIRA_ALARM_LABELS)%'
+            $jiraAlarmLabels: '%env(JIRA_ALARM_LABELS)%'
+            $projectDir: '%kernel.project_dir%'
+
+    App\Controller\ColleagueController:
+        arguments:
+            $projectDir: '%kernel.project_dir%'
+
+    App\Command\TestBirthdayCommand:
+        arguments:
+            $spotifyDeviceName: '%env(SPOTIFY_DEVICE_NAME)%'
 
     App\Service\JiraService:
         arguments:
-            $host:  '%env(JIRA_HOST)%'
-            $user:  '%env(JIRA_USER)%'
+            $host: '%env(JIRA_HOST)%'
+            $user: '%env(JIRA_USER)%'
             $token: '%env(JIRA_TOKEN)%'
 
     App\Command\JiraMonitorCommand:
         arguments:
+            $projectDir: '%kernel.project_dir%'
             $alarmClipUrl: '%env(JIRA_ALARM_CLIP_URL)%'
-            $alarmLabels:  '%env(JIRA_ALARM_LABELS)%'
+            $alarmLabels: '%env(JIRA_ALARM_LABELS)%'
             $alarmAccount: '%env(JIRA_ALARM_ACCOUNT)%'
 
     App\Service\WeatherService:
         arguments:
-            $apiKey:   '%env(WEATHER_API_KEY)%'
+            $apiKey: '%env(WEATHER_API_KEY)%'
             $location: '%env(WEATHER_LOCATION)%'
+
+    App\Service\NewsService:
+        arguments:
+            $feedUrl: '%env(NEWS_FEED_URL)%'
 

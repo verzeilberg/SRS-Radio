@@ -38,6 +38,16 @@ class TrackRepository extends ServiceEntityRepository
         return array_column($rows, 'spotifyId');
     }
 
+    public function deleteOlderThan(\DateTimeImmutable $cutoff): int
+    {
+        return $this->createQueryBuilder('t')
+            ->delete()
+            ->where('t.playedAt < :cutoff')
+            ->setParameter('cutoff', $cutoff)
+            ->getQuery()
+            ->execute();
+    }
+
     public function findLatest(): ?Track
     {
         return $this->createQueryBuilder('t')

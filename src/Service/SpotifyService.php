@@ -7,9 +7,11 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 class SpotifyService
 {
-    private ?string $deviceId    = null;
-    private ?array  $topTrackCache = null;
+    private ?string $deviceId         = null;
+    private ?array  $topTrackCache    = null;
     private int     $topTrackCachedAt = 0;
+    private array   $playlistCache    = [];
+    private array   $playlistIdCache  = []; // name → id, cached 24h
 
     public function __construct(
         private HttpClientInterface $httpClient,
@@ -95,6 +97,136 @@ class SpotifyService
             }
             throw $e;
         }
+    }
+
+    public function findPlaylistByName(string $name): ?string
+    {
+        if (isset($this->playlistIdCache[$name]) && (time() - $this->playlistIdCache[$name]['at']) < 86400) {
+            return $this->playlistIdCache[$name]['id'];
+        }
+
+        $token = $this->getValidToken();
+        if (!$token) {
+            return null;
+        }
+
+        // Apostrophes cause HTTP 400 in Spotify search — strip for the query only.
+        $searchQuery = str_replace("'", '', $name);
+
+        $response = $this->httpClient->request('GET', 'https://api.spotify.com/v1/search', [
+            'headers' => ['Authorization' => 'Bearer ' . $token->getAccessToken()],
+            'query'   => ['q' => $searchQuery, 'type' => 'playlist', 'limit' => 10],
+            'timeout' => 15,
+        ]);
+
+        if ($response->getStatusCode() !== 200) {
+            return null;
+        }
+
+        foreach ($response->toArray()['playlists']['items'] ?? [] as $playlist) {
+            if (!$playlist) {
+                continue;
+            }
+            // Take the first result whose name matches exactly (case-insensitive)
+            if (strcasecmp($playlist['name'] ?? '', $name) === 0) {
+                $id = $playlist['id'];
+                $this->playlistIdCache[$name] = ['id' => $id, 'at' => time()];
+                return $id;
+            }
+        }
+
+        // Fallback: return the first non-null result
+        foreach ($response->toArray()['playlists']['items'] ?? [] as $playlist) {
+            if ($playlist && !empty($playlist['id'])) {
+                $id = $playlist['id'];
+                $this->playlistIdCache[$name] = ['id' => $id, 'at' => time()];
+                return $id;
+            }
+        }
+
+        return null;
+    }
+
+    public function getPlaylistTracks(string $playlistId): array
+    {
+        if (isset($this->playlistCache[$playlistId]) && (time() - $this->playlistCache[$playlistId]['at']) < 300) {
+            return $this->playlistCache[$playlistId]['tracks'];
+        }
+
+        $token = $this->getValidToken();
+        if (!$token) {
+            throw new \RuntimeException('Geen geldig Spotify token gevonden.');
+        }
+
+        try {
+            $response = $this->httpClient->request('GET',
+                'https://api.spotify.com/v1/playlists/' . $playlistId . '/tracks', [
+                'headers' => ['Authorization' => 'Bearer ' . $token->getAccessToken()],
+                'query'   => [
+                    'limit'  => 100,
+                    'fields' => 'items(track(id,uri,name,artists(name),album(images),duration_ms))',
+                ],
+                'timeout' => 30,
+            ]);
+
+            if ($response->getStatusCode() !== 200) {
+                throw new \RuntimeException(sprintf(
+                    'Playlist %s gaf HTTP %d', $playlistId, $response->getStatusCode()
+                ));
+            }
+
+            $tracks = [];
+            foreach ($response->toArray()['items'] ?? [] as $item) {
+                $t = $item['track'] ?? null;
+                if (!$t || empty($t['id'])) {
+                    continue;
+                }
+                $tracks[] = [
+                    'uri'         => $t['uri'],
+                    'id'          => $t['id'],
+                    'title'       => $t['name'],
+                    'artist'      => $t['artists'][0]['name'] ?? '',
+                    'duration_ms' => $t['duration_ms'] ?? 0,
+                    'image'       => $t['album']['images'][0]['url'] ?? null,
+                ];
+            }
+
+            $this->playlistCache[$playlistId] = ['at' => time(), 'tracks' => $tracks];
+            return $tracks;
+
+        } catch (\Throwable $e) {
+            if (isset($this->playlistCache[$playlistId])) {
+                return $this->playlistCache[$playlistId]['tracks'];
+            }
+            throw $e;
+        }
+    }
+
+    /** Search for a track by exact title (case-insensitive). Returns Spotify URI or null. */
+    public function searchTrackByTitle(string $title): ?string
+    {
+        $token = $this->getValidToken();
+        if (!$token) {
+            return null;
+        }
+
+        $response = $this->httpClient->request('GET', 'https://api.spotify.com/v1/search', [
+            'headers' => ['Authorization' => 'Bearer ' . $token->getAccessToken()],
+            'query'   => ['q' => $title, 'type' => 'track', 'limit' => 20],
+            'timeout' => 10,
+        ]);
+
+        if ($response->getStatusCode() !== 200) {
+            return null;
+        }
+
+        foreach ($response->toArray()['tracks']['items'] ?? [] as $track) {
+            if (strcasecmp($track['name'] ?? '', $title) === 0) {
+                return $track['uri'];
+            }
+        }
+
+        return null;
     }
 
     public function getAccessToken(): ?string
@@ -247,10 +379,18 @@ class SpotifyService
 
         $query = $this->deviceId ? '&device_id=' . $this->deviceId : '';
 
-        $this->httpClient->request('PUT',
+        $response = $this->httpClient->request('PUT',
             'https://api.spotify.com/v1/me/player/volume?volume_percent=' . $percent . $query,
             ['headers' => ['Authorization' => 'Bearer ' . $token->getAccessToken()]]
         );
+
+        $status = $response->getStatusCode();
+        if ($status === 403) {
+            throw new \RuntimeException('Spotify volume control not supported on this device (device is restricted).');
+        }
+        if ($status >= 300) {
+            throw new \RuntimeException('Spotify setVolume failed (' . $status . '): ' . $response->getContent(false));
+        }
     }
 
     private function getValidToken(): ?SpotifyToken

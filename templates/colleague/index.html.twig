@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Colleagues — SRS FM</title>
+    <link href="https://fonts.googleapis.com/css2?family=Raleway:wght@300;400;700;900&family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Lato', sans-serif; background: #0a1929; color: #fff; min-height: 100vh; padding: 2rem; }
+        h1 { font-family: 'Raleway', sans-serif; font-size: 1.8rem; font-weight: 700; margin-bottom: 0.25rem; }
+        .subtitle { color: #7aa8cc; font-size: 0.9rem; margin-bottom: 2rem; }
+        a.back { color: #7aa8cc; text-decoration: none; font-size: 0.85rem; display: inline-block; margin-bottom: 1.5rem; }
+        a.back:hover { color: #fff; }
+
+        .flash { padding: 0.75rem 1rem; border-radius: 6px; margin-bottom: 1.5rem; font-size: 0.9rem; }
+        .flash.success { background: #1a3d2a; border: 1px solid #2e7d52; color: #6fcf97; }
+        .flash.error   { background: #3d1a1a; border: 1px solid #7d2e2e; color: #eb5757; }
+
+        .layout { display: grid; grid-template-columns: 1fr 340px; gap: 2rem; align-items: start; }
+
+        /* Grid */
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 1rem; }
+        .card { background: #144b7c; border-radius: 10px; overflow: hidden; position: relative; }
+        .card img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; }
+        .card .placeholder { width: 100%; aspect-ratio: 1; background: #1a2e42; display: flex; align-items: center; justify-content: center; font-size: 3rem; color: #7aa8cc; }
+        .card .info { padding: 0.75rem; }
+        .card .name { font-weight: 700; font-size: 0.95rem; }
+        .card .bday { font-size: 0.8rem; color: #7aa8cc; margin-top: 0.2rem; }
+        .card .today-badge { position: absolute; top: 0.5rem; right: 0.5rem; background: #f39c12; color: #000; font-size: 0.7rem; font-weight: 700; padding: 0.2rem 0.5rem; border-radius: 12px; }
+        .card form { padding: 0 0.75rem 0.75rem; }
+        .card button { background: #1a2e42; border: none; color: #eb5757; cursor: pointer; font-size: 0.8rem; padding: 0.35rem 0.75rem; border-radius: 5px; width: 100%; }
+        .card button:hover { background: #3d1a1a; }
+        .empty { color: #7aa8cc; font-size: 0.9rem; padding: 1rem 0; }
+
+        /* Form */
+        .add-form { background: #144b7c; border-radius: 10px; padding: 1.5rem; }
+        .add-form h2 { font-family: 'Raleway', sans-serif; font-size: 1.1rem; font-weight: 700; margin-bottom: 1.25rem; }
+        .field { margin-bottom: 1rem; }
+        .field label { display: block; font-size: 0.8rem; color: #7aa8cc; margin-bottom: 0.4rem; text-transform: uppercase; letter-spacing: 0.05em; }
+        .field input { width: 100%; background: #1a2e42; border: 1px solid #2a4a6a; border-radius: 6px; color: #fff; padding: 0.6rem 0.8rem; font-size: 0.9rem; font-family: inherit; }
+        .field input:focus { outline: none; border-color: #7aa8cc; }
+        .field input[type=file] { cursor: pointer; }
+        .submit-btn { width: 100%; background: #f39c12; color: #000; border: none; border-radius: 6px; padding: 0.7rem; font-size: 0.9rem; font-weight: 700; cursor: pointer; font-family: inherit; margin-top: 0.5rem; }
+        .submit-btn:hover { background: #e08e0b; }
+
+        .note { background: #1a2e42; border-radius: 6px; padding: 0.75rem 1rem; font-size: 0.8rem; color: #7aa8cc; margin-top: 1rem; line-height: 1.5; }
+    </style>
+</head>
+<body>
+
+<a href="/" class="back">← Back to SRS FM</a>
+<h1>🎂 Birthdays</h1>
+<p class="subtitle">Colleagues are announced on air at 11:00 on their birthday.</p>
+
+{% for label, messages in app.flashes %}
+    {% for message in messages %}
+        <div class="flash {{ label }}">{{ message }}</div>
+    {% endfor %}
+{% endfor %}
+
+<div class="layout">
+    <div>
+        {% if colleagues is empty %}
+            <p class="empty">No colleagues added yet.</p>
+        {% else %}
+            <div class="grid">
+                {% for c in colleagues %}
+                    {% set isToday = c.birthdate|date('m-d') == 'now'|date('m-d') %}
+                    <div class="card">
+                        {% if isToday %}<span class="today-badge">🎉 Today!</span>{% endif %}
+                        {% if c.picture %}
+                            <img src="/images/colleagues/{{ c.picture }}" alt="{{ c.name }}">
+                        {% else %}
+                            <div class="placeholder">👤</div>
+                        {% endif %}
+                        <div class="info">
+                            <div class="name">{{ c.name }}</div>
+                            <div class="bday">{{ c.birthdate|date('d F Y') }}</div>
+                        </div>
+                        <form method="post" action="/colleagues/{{ c.id }}" onsubmit="return confirm('Remove {{ c.name }}?')">
+                            <input type="hidden" name="_method" value="DELETE">
+                            <button type="submit">Remove</button>
+                        </form>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    </div>
+
+    <div>
+        <form class="add-form" method="post" action="/colleagues" enctype="multipart/form-data">
+            <h2>Add Colleague</h2>
+            <div class="field">
+                <label>Name</label>
+                <input type="text" name="name" placeholder="e.g. Jan de Vries" required>
+            </div>
+            <div class="field">
+                <label>Date of birth</label>
+                <input type="date" name="birthdate" required>
+            </div>
+            <div class="field">
+                <label>Photo (optional)</label>
+                <input type="file" name="picture" accept="image/*">
+            </div>
+            <button type="submit" class="submit-btn">Add Colleague</button>
+        </form>
+        <div class="note">
+            Photos are stored in <code>public/images/colleagues/</code>.
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

@@ -25,6 +25,7 @@ class RadioController extends AbstractController
         private JiraService $jiraService,
         private string $jiraAlarmAccount,
         private string $jiraAlarmLabels,
+        private string $projectDir,
     ) {}
 
     #[Route('/', methods: ['GET'])]
@@ -36,6 +37,14 @@ class RadioController extends AbstractController
     #[Route('/api/jira-tickets', methods: ['GET'])]
     public function jiraTickets(): JsonResponse
     {
+        $stateFile = $this->projectDir . '/var/jira-state.json';
+
+        if (file_exists($stateFile) && (time() - filemtime($stateFile)) < 120) {
+            $data = json_decode(file_get_contents($stateFile), true);
+            return new JsonResponse($data['tickets'] ?? []);
+        }
+
+        // Fallback when jira:monitor is not running
         try {
             $labels  = array_values(array_filter(array_map('trim', explode(',', $this->jiraAlarmLabels))));
             $tickets = $this->jiraService->getHighestPriorityTickets($labels, $this->jiraAlarmAccount);
@@ -110,6 +119,9 @@ class RadioController extends AbstractController
             'playback_method'   => $state['playback_method'] ?? null,
             'next_track_title'  => $isIdle ? null : ($state['next_track_title'] ?? null),
             'next_track_artist' => $isIdle ? null : ($state['next_track_artist'] ?? null),
+            'birthday_active'   => (bool) ($state['birthday_active'] ?? false),
+            'birthday_name'     => $state['birthday_name'] ?? null,
+            'birthday_picture'  => isset($state['birthday_picture']) ? '/images/colleagues/' . $state['birthday_picture'] : null,
         ]);
     }
 

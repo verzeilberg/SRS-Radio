@@ -19,12 +19,13 @@ class JiraService
      * @param string[] $labels  Only return tickets that have at least one of these labels.
      *                          Empty array = no label filter.
      */
-    public function getHighestPriorityTickets(array $labels = [], string $account = 'Support'): array
+    public function getHighestPriorityTickets(array $labels = [], string $account = ''): array
     {
-        $jql = sprintf(
-            'priority = Highest AND account = "%s" AND status in ("in progress", "on hold", "backlog", "todo")',
-            $account,
-        );
+        $jql = 'priority = Highest AND statusCategory != Done';
+
+        if (!empty($account)) {
+            $jql .= sprintf(' AND cf[11329] = "%s"', strtoupper($account));
+        }
 
         if (!empty($labels)) {
             $quoted = implode(', ', array_map(fn($l) => '"' . $l . '"', $labels));

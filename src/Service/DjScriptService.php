@@ -9,6 +9,7 @@ class DjScriptService
     public function __construct(
         private HttpClientInterface $httpClient,
         private string $groqApiKey,
+        private string $language = 'en',
     ) {}
 
     public function generate(DjContext $ctx): string
@@ -47,41 +48,79 @@ class DjScriptService
         return $text;
     }
 
+    private function buildNewsPrompt(string $base, DjContext $ctx): string
+    {
+        if (empty($ctx->headlines)) {
+            return "{$base}\n\nBriefly introduce the news bulletin in radio DJ style. Max 2 sentences.";
+        }
+
+        $list = implode("\n", array_map(
+            fn($i, $h) => ($i + 1) . '. ' . $h,
+            range(0, count($ctx->headlines) - 1),
+            $ctx->headlines,
+        ));
+
+        return "{$base}\n\nRead the following top news headlines as a natural, concise radio news bulletin. Present them fluently one after another without adding opinions or commentary:\n{$list}\n\nMax 4-5 sentences total.";
+    }
+
+    private function buildBirthdayPrompt(string $base, DjContext $ctx): string
+    {
+        $name = $ctx->birthdayColleague ?? 'a colleague';
+        return "{$base}\n\nAnnounce on-air that today is {$name}'s birthday! Wish them a happy birthday on behalf of the whole team. Keep it warm, fun, and festive — radio style, max 2-3 sentences.";
+    }
+
+    private function buildSongFactPrompt(string $base, DjContext $ctx): string
+    {
+        return "{$base}\n\nShare one interesting, surprising, or little-known fact about {$ctx->artist} or their music with the listeners. Keep it conversational and radio-style, max 2 sentences. Vary your opening — don't always start with \"Did you know\".";
+    }
+
     private function buildWeatherPrompt(string $base, DjContext $ctx): string
     {
         if (!$ctx->weather) {
-            return "{$base}\n\nGeef een kort weerbericht voor vandaag in radio DJ stijl. Max 2-3 zinnen.";
+            return "{$base}\n\nGive a short weather update for today in radio DJ style. Max 2-3 sentences.";
         }
 
         $w = $ctx->weather;
 
         return "{$base}\n\n" .
-            "Geef een leuk, informeel weerbericht in radio DJ stijl voor {$w['city']}:\n" .
-            "- Temperatuur: {$w['temp']}°C (voelt als {$w['feels_like']}°C)\n" .
-            "- Weer: {$w['description']}\n" .
-            "- Luchtvochtigheid: {$w['humidity']}%\n" .
-            "- Wind: {$w['wind_kmh']} km/u\n\n" .
-            "Max 2-3 zinnen. Presenteer het als een echte radiopresentator, energiek maar bondig.";
+            "Give a fun, informal weather update in radio DJ style for {$w['city']}:\n" .
+            "- Temperature: {$w['temp']}°C (feels like {$w['feels_like']}°C)\n" .
+            "- Weather: {$w['description']}\n" .
+            "- Humidity: {$w['humidity']}%\n" .
+            "- Wind: {$w['wind_kmh']} km/h\n\n" .
+            "Max 2-3 sentences. Present it as a real radio host, energetic but concise.";
     }
 
     private function buildPrompt(DjContext $ctx): string
     {
-        $base = "Je bent een energieke radio DJ voor {$ctx->station}. Schrijf een korte radio-voice tekst (max 2-3 zinnen). Geen hashtags, geen uitleg, radio-stijl, enthousiast maar natuurlijk. Spreek de luisteraar direct aan.";
+        $lang = $this->language === 'nl' ? 'Dutch' : 'English';
+        $base = "You are an energetic radio DJ for {$ctx->station}. Write a short radio voice-over text (max 2-3 sentences). No hashtags, no explanations, radio style, enthusiastic but natural. Address the listener directly. Respond in {$lang}.";
+
+        if (!empty($ctx->recentTexts)) {
+            $list  = implode("\n", array_map(fn($t) => '- ' . $t, $ctx->recentTexts));
+            $base .= "\n\nThese clips were already played recently — do NOT repeat or closely paraphrase any of them:\n{$list}";
+        }
 
         return match ($ctx->type) {
-            'morning' => "{$base}\n\nHet is {$ctx->hour}:00. Schrijf een energieke goedemorgen-introductie voor de werkdag.",
+            'morning' => "{$base}\n\nIt is {$ctx->hour}:00. Write an energetic good morning introduction for the workday.",
 
-            'lunch' => "{$base}\n\nHet is lunchtijd ({$ctx->hour}:00). Schrijf een gezellige lunchbreak-aankondiging. Ontspannen toon.",
+            'lunch' => "{$base}\n\nIt is lunchtime ({$ctx->hour}:00). Write a friendly lunch break announcement. Relaxed tone.",
 
-            'afternoon' => "{$base}\n\nHet is {$ctx->hour}:00, de middagsessie begint. Schrijf een motiverende introductie voor het tweede deel van de dag.",
+            'afternoon' => "{$base}\n\nIt is {$ctx->hour}:00, the afternoon session begins. Write a motivating introduction for the second part of the day.",
 
-            'friday_afternoon' => "{$base}\n\nHet is vrijdagmiddag {$ctx->hour}:00! Het weekend begint zo. Schrijf een uitbundige vrijdagmiddag-aankondiging die het weekend inluidt.",
+            'friday_afternoon' => "{$base}\n\nIt is Friday afternoon at {$ctx->hour}:00! The weekend is almost here. Write an enthusiastic Friday afternoon announcement that kicks off the weekend.",
 
-            'end_of_day' => "{$base}\n\nHet is {$ctx->hour}:00, de werkdag zit er bijna op. Schrijf een afsluiting die de luisteraars groet en aanmoedigt.",
+            'end_of_day' => "{$base}\n\nIt is {$ctx->hour}:00, the workday is almost over. Write a closing that greets and encourages the listeners.",
 
             'weather' => $this->buildWeatherPrompt($base, $ctx),
 
-            default => "{$base}\n\nJe kondigt de volgende track aan die zo meteen wordt gespeeld:\nTrack: {$ctx->track}\nArtiest: {$ctx->artist}\n\nMaak er een korte, enthousiaste introductie van. Noem geen tijdstip.",
+            'news' => $this->buildNewsPrompt($base, $ctx),
+
+            'birthday'  => $this->buildBirthdayPrompt($base, $ctx),
+
+            'song_fact' => $this->buildSongFactPrompt($base, $ctx),
+
+            default => "{$base}\n\nYou are introducing the next track about to be played:\nTrack: {$ctx->track}\nArtist: {$ctx->artist}\n\nMake a short, enthusiastic introduction. Do not mention a time.",
         };
     }
 }

@@ -5,14 +5,92 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 class SonosService
 {
-    private ?int  $spotifySerialNum  = null;
-    private ?int  $spotifyServiceId  = null;
+    private ?int    $spotifySerialNum     = null;
+    private ?int    $spotifyServiceId     = null;
+    private ?string $avTransportUrl       = null;
+    private ?string $renderingControlUrl  = null;
 
     public function __construct(
         private HttpClientInterface $httpClient,
         private string $sonosIp,
         private int $spotifySnOverride = 0,
     ) {}
+
+    public function getIp(): string
+    {
+        return $this->sonosIp;
+    }
+
+    public function setIp(string $ip): void
+    {
+        $this->sonosIp = $ip;
+    }
+
+    /**
+     * Probe $ip for a DLNA/UPnP MediaRenderer, discover its AVTransport and
+     * RenderingControl endpoints, and configure this service to use them.
+     */
+    public function discoverDlnaDevice(string $ip): bool
+    {
+        $candidates = [
+            "http://{$ip}:9197/dmr",
+            "http://{$ip}:1400/xml/device_description.xml",
+            "http://{$ip}:7676/dmr",
+            "http://{$ip}:8080/description.xml",
+        ];
+
+        foreach ($candidates as $descUrl) {
+            try {
+                $response = $this->httpClient->request('GET', $descUrl, ['timeout' => 2]);
+                if ($response->getStatusCode() !== 200) {
+                    continue;
+                }
+
+                $xml    = new \SimpleXMLElement($response->getContent());
+                $avPath = null;
+                $rcPath = null;
+
+                foreach ($xml->xpath('//*[local-name()="service"]') as $service) {
+                    $type = (string) ($service->xpath('*[local-name()="serviceType"]')[0] ?? '');
+                    $ctrl = (string) ($service->xpath('*[local-name()="controlURL"]')[0] ?? '');
+
+                    if ($type === 'urn:schemas-upnp-org:service:AVTransport:1') {
+                        $avPath = $ctrl;
+                    } elseif ($type === 'urn:schemas-upnp-org:service:RenderingControl:1') {
+                        $rcPath = $ctrl;
+                    }
+                }
+
+                if ($avPath !== null) {
+                    $parsed = parse_url($descUrl);
+                    $base   = $parsed['scheme'] . '://' . $parsed['host'] . ':' . $parsed['port'];
+                    $this->avTransportUrl      = $base . $avPath;
+                    $this->renderingControlUrl = $rcPath !== null ? $base . $rcPath : null;
+                    $this->sonosIp             = $ip;
+                    return true;
+                }
+            } catch (\Throwable) {}
+        }
+
+        return false;
+    }
+
+    public function findDeviceIp(string $roomName): ?string
+    {
+        try {
+            ['body' => $body] = $this->getTopologyRaw();
+            $xml = new \SimpleXMLElement($body);
+            foreach ($xml->ZonePlayers->ZonePlayer ?? [] as $player) {
+                $name     = (string) $player['roomName'];
+                $location = (string) $player['LOCATION'];
+                if (stripos($name, $roomName) !== false && preg_match('/http:\/\/([^:]+):/', $location, $m)) {
+                    return $m[1];
+                }
+            }
+        } catch (\Throwable) {}
+
+        return null;
+    }
 
     public function getRoomName(): string
     {
@@ -163,6 +241,19 @@ XML;
             || str_contains($response, '<CurrentTransportState>TRANSITIONING</CurrentTransportState>');
     }
 
+    public function seek(int $seconds): void
+    {
+        $h = intdiv($seconds, 3600);
+        $m = intdiv($seconds % 3600, 60);
+        $s = $seconds % 60;
+
+        $this->soap('Seek', [
+            'InstanceID' => 0,
+            'Unit'       => 'REL_TIME',
+            'Target'     => sprintf('%d:%02d:%02d', $h, $m, $s),
+        ]);
+    }
+
     public function waitForClipToEnd(int $maxSeconds = 120): void
     {
         sleep(2);
@@ -256,7 +347,7 @@ XML;
 </s:Envelope>
 XML;
 
-        $response = $this->httpClient->request('POST', "http://{$this->sonosIp}:1400/MediaRenderer/RenderingControl/Control", [
+        $response = $this->httpClient->request('POST', $this->getRenderingControlUrl(), [
             'headers' => [
                 'Content-Type' => 'text/xml; charset=utf-8',
                 'SOAPACTION'   => '"urn:schemas-upnp-org:service:RenderingControl:1#' . $action . '"',
@@ -294,7 +385,7 @@ XML;
 </s:Envelope>
 XML;
 
-        $response = $this->httpClient->request('POST', "http://{$this->sonosIp}:1400/MediaRenderer/AVTransport/Control", [
+        $response = $this->httpClient->request('POST', $this->getAvTransportUrl(), [
             'headers' => [
                 'Content-Type' => 'text/xml; charset=utf-8',
                 'SOAPACTION'   => '"urn:schemas-upnp-org:service:AVTransport:1#' . $action . '"',
@@ -314,6 +405,16 @@ XML;
         }
 
         return $body;
+    }
+
+    private function getAvTransportUrl(): string
+    {
+        return $this->avTransportUrl ?? "http://{$this->sonosIp}:1400/MediaRenderer/AVTransport/Control";
+    }
+
+    private function getRenderingControlUrl(): string
+    {
+        return $this->renderingControlUrl ?? "http://{$this->sonosIp}:1400/MediaRenderer/RenderingControl/Control";
     }
 
     private function buildMetadata(string $id, string $title, string $artist, int $sn = 1, int $sid = 9): string

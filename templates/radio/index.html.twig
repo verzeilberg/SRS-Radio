@@ -321,6 +321,105 @@
         text-transform: uppercase;
         color: rgba(255,255,255,0.3);
     }
+
+    /* ── Birthday popup ── */
+    #birthday-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 500;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, #1a0533 0%, #0d1f3c 50%, #1a0533 100%);
+        overflow: hidden;
+    }
+    #birthday-overlay.active { display: flex; }
+
+    .bday-content {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 1.5rem;
+        z-index: 2;
+        text-align: center;
+        padding: 2rem;
+    }
+
+    .bday-photo {
+        width: clamp(140px, 22vw, 260px);
+        height: clamp(140px, 22vw, 260px);
+        border-radius: 50%;
+        object-fit: cover;
+        border: 5px solid rgba(255,255,255,0.3);
+        box-shadow: 0 0 60px rgba(255,200,0,0.4);
+        animation: bday-pop 0.6s cubic-bezier(0.175,0.885,0.32,1.275) both;
+    }
+
+    .bday-avatar {
+        width: clamp(140px, 22vw, 260px);
+        height: clamp(140px, 22vw, 260px);
+        border-radius: 50%;
+        background: rgba(255,255,255,0.08);
+        border: 5px solid rgba(255,255,255,0.2);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: clamp(4rem, 10vw, 8rem);
+        animation: bday-pop 0.6s cubic-bezier(0.175,0.885,0.32,1.275) both;
+    }
+
+    @keyframes bday-pop {
+        from { transform: scale(0.3); opacity: 0; }
+        to   { transform: scale(1);   opacity: 1; }
+    }
+
+    .bday-title {
+        font-family: 'Raleway', sans-serif;
+        font-size: clamp(1.2rem, 3vw, 2rem);
+        font-weight: 700;
+        letter-spacing: 0.3em;
+        text-transform: uppercase;
+        color: rgba(255,200,0,0.9);
+        animation: bday-fade-up 0.6s 0.2s ease both;
+    }
+
+    .bday-name {
+        font-family: 'Raleway', sans-serif;
+        font-size: clamp(2.5rem, 7vw, 6rem);
+        font-weight: 900;
+        color: #fff;
+        line-height: 1;
+        animation: bday-fade-up 0.6s 0.35s ease both;
+    }
+
+    .bday-sub {
+        font-size: clamp(1rem, 2.5vw, 1.5rem);
+        font-weight: 300;
+        color: rgba(255,255,255,0.5);
+        letter-spacing: 0.06em;
+        animation: bday-fade-up 0.6s 0.5s ease both;
+    }
+
+    @keyframes bday-fade-up {
+        from { opacity: 0; transform: translateY(20px); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Confetti particles */
+    .confetti {
+        position: absolute;
+        width: 10px;
+        height: 10px;
+        border-radius: 2px;
+        opacity: 0;
+        animation: confetti-fall linear forwards;
+        pointer-events: none;
+    }
+
+    @keyframes confetti-fall {
+        0%   { transform: translateY(-20px) rotate(0deg);   opacity: 1; }
+        100% { transform: translateY(110vh) rotate(720deg); opacity: 0; }
+    }
 </style>
 {% endblock %}
 
@@ -331,7 +430,6 @@
 
         <div class="top">
             <img src="/images/srs-logo.svg" alt="SRS" class="logo">
-            <div class="station">FM</div>
         </div>
 
         <div class="eq-row">
@@ -408,12 +506,11 @@
             </div>
         </div>
 
-        <div class="dj-text" id="dj-text"></div>
-        <div id="next-track-wrap" style="display:none;margin-top:0.6rem;text-align:center;opacity:0.55;font-size:1rem;letter-spacing:0.04em;">
-            <span style="text-transform:uppercase;font-size:0.7rem;letter-spacing:0.12em;opacity:0.7;">Straks</span><br>
-            <span id="next-track-title" style="font-weight:600;"></span>
-            <span style="opacity:0.6;"> — </span>
-            <span id="next-track-artist"></span>
+        <div class="dj-text" id="dj-text" style="display: none;"></div>
+        <div id="next-track-wrap" style="display:none;margin-top:0.5rem;width:100%;text-align:center;">
+            <div style="font-family:'Raleway',sans-serif;font-size:clamp(1.8rem,4vh,3rem);font-weight:900;letter-spacing:0.25em;text-transform:uppercase;color:rgba(255,255,255,0.3);margin-bottom:0.25rem;">Next</div>
+            <div style="font-family:'Raleway',sans-serif;font-size:clamp(1.2rem,2.8vh,2.2rem);font-weight:900;color:rgba(255,255,255,0.6);line-height:1.15;" id="next-track-title"></div>
+            <div style="font-size:1.05rem;font-weight:300;color:rgba(46,163,242,0.6);letter-spacing:0.04em;" id="next-track-artist"></div>
         </div>
 
     </div>
@@ -433,6 +530,15 @@
     <span id="on-air-label">verbinden…</span>
 </div>
 
+<div id="birthday-overlay">
+    <div class="bday-content">
+        <div id="bday-photo-wrap"></div>
+        <div class="bday-title">Gefeliciteerd!</div>
+        <div class="bday-name" id="bday-name"></div>
+        <div class="bday-sub">Van het hele SRS team 🎉</div>
+    </div>
+</div>
+
 <div id="tune-in-overlay" style="position:fixed;inset:0;background:rgba(10,25,41,0.92);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.5rem;z-index:200;backdrop-filter:blur(4px);">
     <img src="/images/srs-logo.svg" alt="SRS FM" style="height:80px;filter:brightness(0) invert(1);opacity:0.9;">
     <button onclick="tuneIn()" style="background:#2ea3f2;color:#fff;border:none;border-radius:2rem;padding:0.85rem 2.5rem;font-size:1rem;font-family:'Raleway',sans-serif;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;cursor:pointer;">
@@ -443,9 +549,74 @@
 <a href="/setup" class="setup-link">⚙ verbindingen</a>
 
 <script>
-let scheduledStartAt = null; // 'HH:MM' from API, or null
-let currentDjClipUrl = null;
-let audioUnlocked    = false;
+let scheduledStartAt  = null; // 'HH:MM' from API, or null
+let currentDjClipUrl  = null;
+let audioUnlocked     = false;
+let birthdayActive    = false;
+let confettiInterval  = null;
+
+function showBirthday(name, picture) {
+    if (birthdayActive) return;
+    birthdayActive = true;
+
+    document.getElementById('bday-name').textContent = name;
+
+    const wrap = document.getElementById('bday-photo-wrap');
+    wrap.innerHTML = '';
+    if (picture) {
+        const img = document.createElement('img');
+        img.src       = picture;
+        img.className = 'bday-photo';
+        img.alt       = name;
+        wrap.appendChild(img);
+    } else {
+        const av = document.createElement('div');
+        av.className   = 'bday-avatar';
+        av.textContent = '🎂';
+        wrap.appendChild(av);
+    }
+
+    document.getElementById('birthday-overlay').classList.add('active');
+    startConfetti();
+}
+
+function hideBirthday() {
+    if (!birthdayActive) return;
+    birthdayActive = false;
+    document.getElementById('birthday-overlay').classList.remove('active');
+    stopConfetti();
+}
+
+const CONFETTI_COLORS = ['#f39c12','#e74c3c','#2ea3f2','#2ecc71','#9b59b6','#f1c40f','#e91e63','#00bcd4'];
+
+function spawnConfetti() {
+    const overlay = document.getElementById('birthday-overlay');
+    for (let i = 0; i < 6; i++) {
+        const el = document.createElement('div');
+        el.className = 'confetti';
+        el.style.left            = Math.random() * 100 + 'vw';
+        el.style.top             = '-20px';
+        el.style.background      = CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)];
+        el.style.width           = (6 + Math.random() * 10) + 'px';
+        el.style.height          = (6 + Math.random() * 10) + 'px';
+        el.style.borderRadius    = Math.random() > 0.5 ? '50%' : '2px';
+        const dur                = 2.5 + Math.random() * 3;
+        el.style.animationDuration = dur + 's';
+        el.style.animationDelay    = (Math.random() * 0.8) + 's';
+        overlay.appendChild(el);
+        setTimeout(() => el.remove(), (dur + 1) * 1000);
+    }
+}
+
+function startConfetti() {
+    spawnConfetti();
+    confettiInterval = setInterval(spawnConfetti, 600);
+}
+
+function stopConfetti() {
+    clearInterval(confettiInterval);
+    confettiInterval = null;
+}
 
 function tuneIn() {
     audioUnlocked = true;
@@ -762,6 +933,12 @@ async function poll() {
             baseHue   = trackToHue(track + artist);
         }
 
+        if (data.birthday_active && data.birthday_name) {
+            showBirthday(data.birthday_name, data.birthday_picture || null);
+        } else {
+            hideBirthday();
+        }
+
         setOnAir(data.is_playing);
 
         // While a DJ clip is playing in the browser, the <audio> element drives
@@ -837,7 +1014,7 @@ async function pollJira() {
     } catch (e) {}
 }
 
-setInterval(pollJira, 30000);
+setInterval(pollJira, 5000);
 pollJira();
 // ──────────────────────────────────────────────────────────────────────────
 </script>

@@ -9,8 +9,9 @@ class SonosApiService
 {
     private const API = 'https://api.ws.sonos.com/control/api/v1';
 
-    private ?string $groupId = null;
+    private ?string $groupId  = null;
     private ?string $playerId = null;
+    private ?string $playerIp = null;
 
     public function __construct(
         private HttpClientInterface $httpClient,
@@ -40,6 +41,10 @@ class SonosApiService
                         if (in_array($player['id'], $group['playerIds'] ?? [], true)) {
                             $this->groupId  = $group['id'];
                             $this->playerId = $player['id'];
+                            // Extract IP from websocketUrl (wss://192.168.x.x:1443/...)
+                            if (preg_match('/wss?:\/\/([^:\/?]+)/', $player['websocketUrl'] ?? '', $m)) {
+                                $this->playerIp = $m[1];
+                            }
                             return $this->groupId;
                         }
                     }
@@ -55,18 +60,23 @@ class SonosApiService
         return $this->groupId;
     }
 
+    public function getPlayerIp(): ?string
+    {
+        return $this->playerIp;
+    }
+
     /**
      * Play a short audio clip on the Sonos speaker (overlays current music).
      * $clipUrl must be an HTTP URL reachable by the Sonos speaker on the LAN.
      */
-    public function playAudioClip(string $clipUrl): bool
+    public function playAudioClip(string $clipUrl, ?int $volume = null): bool
     {
         $token = $this->getValidToken();
         if (!$token || !$this->playerId) {
             return false;
         }
 
-        $volume = $this->getGroupVolume() ?? 40;
+        $volume ??= $this->getGroupVolume() ?? 40;
 
         $response = $this->httpClient->request(
             'POST',
@@ -77,15 +87,21 @@ class SonosApiService
                     'Content-Type'  => 'application/json',
                 ],
                 'json' => [
-                    'name'      => 'Jira Alarm',
+                    'name'      => 'SRS FM DJ',
                     'appId'     => 'com.srs.radio',
                     'streamUrl' => $clipUrl,
                     'volume'    => $volume,
+                    'priority'  => 'HIGH',
+                    'clipType'  => 'CUSTOM',
                 ],
             ]
         );
 
-        return $response->getStatusCode() < 300;
+        $status = $response->getStatusCode();
+        if ($status >= 300) {
+            error_log('Sonos audioClip failed (' . $status . '): ' . $response->getContent(false));
+        }
+        return $status < 300;
     }
 
     public function getGroupVolume(): ?int
@@ -117,6 +133,22 @@ class SonosApiService
                 ],
                 'json' => ['volume' => max(0, min(100, $volume))],
             ]
+        );
+
+        return $response->getStatusCode() < 300;
+    }
+
+    public function pause(): bool
+    {
+        $token = $this->getValidToken();
+        if (!$token || !$this->groupId) {
+            return false;
+        }
+
+        $response = $this->httpClient->request(
+            'POST',
+            self::API . '/groups/' . $this->groupId . '/playback/pause',
+            ['headers' => ['Authorization' => 'Bearer ' . $token->getAccessToken()]]
         );
 
         return $response->getStatusCode() < 300;

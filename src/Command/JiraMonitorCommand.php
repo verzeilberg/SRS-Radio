@@ -2,8 +2,6 @@
 namespace App\Command;
 
 use App\Service\JiraService;
-use App\Service\SonosApiService;
-use App\Service\SonosService;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -11,13 +9,12 @@ use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
-#[AsCommand(name: 'jira:monitor', description: 'Monitor Jira for highest-priority tickets and trigger an alarm')]
+#[AsCommand(name: 'jira:monitor', description: 'Monitor Jira for highest-priority tickets and trigger the radio alarm')]
 class JiraMonitorCommand extends Command
 {
     public function __construct(
         private JiraService $jira,
-        private SonosApiService $sonosApi,
-        private SonosService $sonos,
+        private string $projectDir,
         private string $alarmClipUrl,
         private string $alarmLabels,
         private string $alarmAccount,
@@ -28,15 +25,15 @@ class JiraMonitorCommand extends Command
     protected function configure(): void
     {
         $this
-            ->addOption('interval', null, InputOption::VALUE_OPTIONAL, 'Poll interval in seconds', 60)
-            ->addOption('once', null, InputOption::VALUE_NONE, 'Check once and exit (useful for cron)');
+            ->addOption('interval', null, InputOption::VALUE_OPTIONAL, 'Poll interval in seconds', 5)
+            ->addOption('once',     null, InputOption::VALUE_NONE,     'Check once and exit')
+            ->addOption('test',     null, InputOption::VALUE_NONE,     'Write a test alarm immediately and exit');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io       = new SymfonyStyle($input, $output);
         $interval = (int) $input->getOption('interval');
-        $once     = $input->getOption('once');
         $labels   = array_values(array_filter(array_map('trim', explode(',', $this->alarmLabels))));
 
         $io->title('Jira High-Priority Monitor');
@@ -45,8 +42,16 @@ class JiraMonitorCommand extends Command
         $io->writeln(sprintf('Interval: <info>%ds</info>', $interval));
         $io->newLine();
 
-        $roomName = $this->sonos->getRoomName();
-        $this->sonosApi->discoverGroup($roomName);
+        if ($input->getOption('test')) {
+            $io->warning('TEST MODE — writing alarm file now.');
+            $this->writeAlarmFile([
+                'key'     => 'TEST-1',
+                'summary' => 'Test alarm — this is a test of the emergency broadcast system',
+                'status'  => 'open',
+            ]);
+            $io->writeln('Alarm file written. radio:start will play the siren on the next loop tick.');
+            return Command::SUCCESS;
+        }
 
         $knownKeys = [];
         $firstRun  = true;
@@ -56,26 +61,20 @@ class JiraMonitorCommand extends Command
                 $tickets     = $this->jira->getHighestPriorityTickets($labels, $this->alarmAccount);
                 $currentKeys = array_keys($tickets);
 
+                $this->writeStateFile($tickets);
+
                 if ($firstRun) {
                     $knownKeys = $currentKeys;
                     $firstRun  = false;
                     $io->writeln(sprintf('[%s] Baseline: %d open highest-priority ticket(s).', $this->now(), count($knownKeys)));
                 } else {
-                    $newKeys = array_diff($currentKeys, $knownKeys);
-
-                    foreach ($newKeys as $key) {
+                    foreach (array_diff($currentKeys, $knownKeys) as $key) {
                         $ticket = $tickets[$key];
-                        $io->warning(sprintf(
-                            '[ALARM] %s — %s (status: %s)',
-                            $ticket['key'],
-                            $ticket['summary'],
-                            $ticket['status'],
-                        ));
-                        $this->triggerAlarm($io);
+                        $io->warning(sprintf('[ALARM] New highest ticket: %s — %s', $ticket['key'], $ticket['summary']));
+                        $this->writeAlarmFile($ticket);
                     }
 
-                    $resolvedKeys = array_diff($knownKeys, $currentKeys);
-                    foreach ($resolvedKeys as $key) {
+                    foreach (array_diff($knownKeys, $currentKeys) as $key) {
                         $io->writeln(sprintf('[%s] <info>Resolved:</info> %s', $this->now(), $key));
                     }
 
@@ -85,7 +84,7 @@ class JiraMonitorCommand extends Command
                 $io->error('Jira check failed: ' . $e->getMessage());
             }
 
-            if ($once) {
+            if ($input->getOption('once')) {
                 break;
             }
 
@@ -95,25 +94,24 @@ class JiraMonitorCommand extends Command
         return Command::SUCCESS;
     }
 
-    private function triggerAlarm(SymfonyStyle $io): void
+    private function writeAlarmFile(array $ticket): void
     {
-        if (!$this->alarmClipUrl) {
-            $io->warning('No alarm clip URL configured (JIRA_ALARM_CLIP_URL).');
-            return;
-        }
+        file_put_contents(
+            $this->projectDir . '/var/jira-alarm.json',
+            json_encode([
+                'url'     => $this->alarmClipUrl,
+                'key'     => $ticket['key'],
+                'summary' => $ticket['summary'],
+            ])
+        );
+    }
 
-        if ($this->sonosApi->playAudioClip($this->alarmClipUrl)) {
-            $io->writeln('<info>Alarm gespeeld via Sonos Cloud API.</info>');
-            return;
-        }
-
-        // Fallback: play directly via UPnP
-        try {
-            $this->sonos->playHttpClip($this->alarmClipUrl);
-            $io->writeln('<info>Alarm gespeeld via UPnP.</info>');
-        } catch (\Throwable $e) {
-            $io->warning('Alarm afspelen mislukt: ' . $e->getMessage());
-        }
+    private function writeStateFile(array $tickets): void
+    {
+        file_put_contents(
+            $this->projectDir . '/var/jira-state.json',
+            json_encode(['updated_at' => time(), 'tickets' => array_values($tickets)])
+        );
     }
 
     private function now(): string
