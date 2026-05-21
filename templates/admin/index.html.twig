@@ -1,0 +1,1734 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SRS Radio – Admin</title>
+    <link href="https://fonts.googleapis.com/css2?family=Raleway:wght@300;400;700;900&family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        html, body {
+            min-height: 100%;
+            font-family: 'Lato', sans-serif;
+            background: #0d0d1a;
+            color: #fff;
+        }
+
+        /* ── Header ── */
+        header {
+            background: #14142b;
+            border-bottom: 1px solid #2a2a4a;
+            padding: 1rem 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .brand {
+            font-family: 'Raleway', sans-serif;
+            font-weight: 700;
+            font-size: 1.1rem;
+            letter-spacing: .1em;
+            color: #b47fff;
+            display: flex;
+            align-items: center;
+            gap: .6rem;
+        }
+
+        .badge {
+            display: inline-block;
+            background: rgba(180,120,255,.15);
+            border: 1px solid rgba(180,120,255,.3);
+            border-radius: 20px;
+            padding: .15rem .6rem;
+            font-size: .65rem;
+            font-weight: 700;
+            letter-spacing: .12em;
+            text-transform: uppercase;
+            color: #b47fff;
+        }
+
+        nav a {
+            color: #6b5a8a;
+            text-decoration: none;
+            font-size: .85rem;
+            margin-left: 1.5rem;
+            transition: color .2s;
+        }
+        nav a:hover { color: #b47fff; }
+        nav a.danger { color: #6b3a4a; }
+        nav a.danger:hover { color: #f87171; }
+
+        /* ── Main layout ── */
+        main {
+            padding: 2.5rem 2rem;
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+
+        h2 {
+            font-family: 'Raleway', sans-serif;
+            font-size: 1.4rem;
+            font-weight: 700;
+            letter-spacing: .05em;
+            margin-bottom: 1.75rem;
+            color: #b47fff;
+        }
+
+        /* ── Flash messages ── */
+        .flash {
+            padding: .75rem 1rem;
+            border-radius: 8px;
+            margin-bottom: 1.25rem;
+            font-size: .875rem;
+        }
+        .flash.success { background: rgba(34,197,94,.1); border: 1px solid rgba(34,197,94,.3); color: #86efac; }
+        .flash.error   { background: rgba(239,68,68,.1);  border: 1px solid rgba(239,68,68,.3);  color: #fca5a5; }
+
+        /* ── Radio controls ── */
+        .radio-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-bottom: 2.5rem;
+        }
+
+        @media (max-width: 600px) { .radio-grid { grid-template-columns: 1fr; } }
+
+        .card {
+            background: #14142b;
+            border: 1px solid #2a2a4a;
+            border-radius: 12px;
+            padding: 1.5rem;
+        }
+
+        .card-title {
+            font-family: 'Raleway', sans-serif;
+            font-size: .75rem;
+            font-weight: 700;
+            letter-spacing: .12em;
+            text-transform: uppercase;
+            color: #6b5a8a;
+            margin-bottom: 1.25rem;
+        }
+
+        .volume-display {
+            text-align: center;
+            margin-bottom: 1.25rem;
+        }
+
+        .volume-number {
+            font-family: 'Raleway', sans-serif;
+            font-size: 3.5rem;
+            font-weight: 900;
+            line-height: 1;
+            color: #b47fff;
+        }
+
+        /* ── Now playing ── */
+        .now-playing {
+            display: flex;
+            align-items: center;
+            gap: .85rem;
+            background: #0a0a1a;
+            border: 1px solid #2a2a4a;
+            border-radius: 8px;
+            padding: .75rem;
+            min-height: 64px;
+        }
+
+        .np-art {
+            width: 48px;
+            height: 48px;
+            border-radius: 5px;
+            object-fit: cover;
+            flex-shrink: 0;
+        }
+
+        .np-text { flex: 1; min-width: 0; }
+
+        .np-track {
+            font-weight: 700;
+            font-size: .9rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            color: #fff;
+        }
+
+        .np-artist {
+            font-size: .78rem;
+            color: #6b5a8a;
+            margin-top: .15rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .np-status {
+            font-size: .65rem;
+            font-weight: 700;
+            letter-spacing: .08em;
+            text-transform: uppercase;
+            color: #3a2a5a;
+            white-space: nowrap;
+        }
+
+        .np-status.playing { color: #86efac; }
+
+        .volume-label { font-size: .7rem; color: #4a3a6a; letter-spacing: .1em; text-transform: uppercase; margin-top: .2rem; }
+        .volume-backend { font-size: .65rem; color: #3a2a5a; margin-top: .1rem; }
+
+        .volume-bar-track {
+            height: 5px;
+            background: #1a1a35;
+            border-radius: 3px;
+            overflow: hidden;
+            margin-bottom: 1.25rem;
+        }
+
+        .volume-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #5b21b6, #b47fff);
+            border-radius: 3px;
+            transition: width .3s ease;
+        }
+
+        .controls { display: flex; gap: .6rem; }
+
+        .btn {
+            flex: 1;
+            padding: .75rem .5rem;
+            border: none;
+            border-radius: 8px;
+            font-family: 'Raleway', sans-serif;
+            font-size: .9rem;
+            font-weight: 700;
+            letter-spacing: .05em;
+            cursor: pointer;
+            transition: background .2s, opacity .2s, transform .1s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: .4rem;
+        }
+
+        .btn:active { transform: scale(.97); }
+        .btn:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+
+        .btn-vol-down, .btn-vol-up {
+            background: #1e1e3f;
+            color: #b47fff;
+            border: 1px solid #3a2a5a;
+        }
+        .btn-vol-down:hover:not(:disabled), .btn-vol-up:hover:not(:disabled) { background: #2a2a50; }
+
+        .btn-pause   { background: #1e3a5f; color: #64b5f6; border: 1px solid #2a5a8a; }
+        .btn-pause:hover:not(:disabled)   { background: #2a4a7a; }
+        .btn-pause.is-paused { background: #1a3d2a; color: #86efac; border-color: #2e7d52; }
+
+        .btn-next    { background: #5b21b6; color: #fff; border: 1px solid #6d28d9; }
+        .btn-next:hover:not(:disabled)    { background: #6d28d9; }
+
+        .btn-restart { background: #1e1e3f; color: #b47fff; border: 1px solid #3a2a5a; }
+        .btn-restart:hover:not(:disabled) { background: #2a2a50; }
+
+        .btn-start { background: #1a3d2a; color: #86efac; border: 1px solid #2e7d52; }
+        .btn-start:hover:not(:disabled) { background: #2e7d52; }
+
+        .btn-stop { background: #3b1111; color: #fca5a5; border: 1px solid #991b1b; }
+        .btn-stop:hover:not(:disabled) { background: #991b1b; }
+
+        /* ── Section wrapper ── */
+        .section { margin-bottom: 2.5rem; }
+
+        .section-header {
+            display: flex;
+            align-items: baseline;
+            gap: .75rem;
+            margin-bottom: 1.75rem;
+        }
+
+        .section-header h2 { margin-bottom: 0; }
+
+        .section-count {
+            font-size: .8rem;
+            color: #4a3a6a;
+        }
+
+        /* ── Birthday layout ── */
+        .birthday-layout {
+            display: grid;
+            grid-template-columns: 1fr 300px;
+            gap: 1.5rem;
+            align-items: start;
+        }
+
+        @media (max-width: 800px) { .birthday-layout { grid-template-columns: 1fr; } }
+
+        /* Colleague cards grid */
+        .colleague-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+            gap: .75rem;
+        }
+
+        .colleague-card {
+            background: #14142b;
+            border: 1px solid #2a2a4a;
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .colleague-card.is-today { border-color: #b47fff; box-shadow: 0 0 12px rgba(180,120,255,.25); }
+
+        .colleague-card img {
+            width: 100%;
+            aspect-ratio: 1;
+            object-fit: cover;
+            display: block;
+        }
+
+        .colleague-placeholder {
+            width: 100%;
+            aspect-ratio: 1;
+            background: #1a1a35;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.5rem;
+            color: #3a2a5a;
+        }
+
+        .today-badge {
+            position: absolute;
+            top: .4rem;
+            right: .4rem;
+            background: #b47fff;
+            color: #0d0d1a;
+            font-size: .6rem;
+            font-weight: 700;
+            padding: .15rem .45rem;
+            border-radius: 10px;
+            letter-spacing: .05em;
+        }
+
+        .colleague-info {
+            padding: .6rem .75rem .25rem;
+        }
+
+        .colleague-name {
+            font-weight: 700;
+            font-size: .875rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .colleague-bday {
+            font-size: .75rem;
+            color: #6b5a8a;
+            margin-top: .15rem;
+        }
+
+        .colleague-card form { padding: .4rem .75rem .6rem; }
+
+        .btn-remove {
+            width: 100%;
+            background: transparent;
+            border: 1px solid #2a1a2a;
+            border-radius: 5px;
+            color: #6b3a4a;
+            font-size: .75rem;
+            padding: .3rem;
+            cursor: pointer;
+            transition: background .2s, color .2s;
+            font-family: 'Lato', sans-serif;
+        }
+        .btn-remove:hover { background: rgba(239,68,68,.1); color: #f87171; border-color: rgba(239,68,68,.3); }
+
+        .no-colleagues {
+            color: #3a2a5a;
+            font-size: .875rem;
+            padding: 1.5rem 0;
+        }
+
+        /* ── Add colleague form ── */
+        .add-form {
+            background: #14142b;
+            border: 1px solid #2a2a4a;
+            border-radius: 12px;
+            padding: 1.5rem;
+        }
+
+        .add-form-title {
+            font-family: 'Raleway', sans-serif;
+            font-size: .75rem;
+            font-weight: 700;
+            letter-spacing: .12em;
+            text-transform: uppercase;
+            color: #6b5a8a;
+            margin-bottom: 1.25rem;
+        }
+
+        .field { margin-bottom: 1rem; }
+
+        .field label {
+            display: block;
+            font-size: .75rem;
+            font-weight: 700;
+            letter-spacing: .08em;
+            text-transform: uppercase;
+            color: #6b5a8a;
+            margin-bottom: .35rem;
+        }
+
+        .field input[type="text"],
+        .field input[type="date"] {
+            width: 100%;
+            background: #0a0a1a;
+            border: 1px solid #2a2a4a;
+            border-radius: 6px;
+            padding: .6rem .75rem;
+            color: #fff;
+            font-size: .9rem;
+            font-family: 'Lato', sans-serif;
+            outline: none;
+            transition: border-color .2s;
+        }
+
+        .field input:focus { border-color: #7c3aed; }
+
+        /* Picture source tabs */
+        .pic-tabs {
+            display: flex;
+            gap: .4rem;
+            margin-bottom: .6rem;
+        }
+
+        .pic-tab {
+            flex: 1;
+            padding: .4rem .6rem;
+            background: #0a0a1a;
+            border: 1px solid #2a2a4a;
+            border-radius: 6px;
+            color: #6b5a8a;
+            font-family: 'Lato', sans-serif;
+            font-size: .75rem;
+            font-weight: 700;
+            letter-spacing: .05em;
+            cursor: pointer;
+            transition: background .2s, color .2s, border-color .2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: .35rem;
+        }
+
+        .pic-tab:hover:not(:disabled) { background: #14142b; color: #b47fff; }
+        .pic-tab.active { background: #1e1e3f; border-color: #5b21b6; color: #b47fff; }
+        .pic-tab:disabled { opacity: .35; cursor: not-allowed; }
+
+        .pic-tab-count {
+            background: rgba(180,120,255,.2);
+            color: #b47fff;
+            border-radius: 10px;
+            padding: .05rem .4rem;
+            font-size: .65rem;
+        }
+
+        /* Existing images grid */
+        .existing-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+            gap: .4rem;
+            max-height: 220px;
+            overflow-y: auto;
+            padding: .25rem;
+            background: #0a0a1a;
+            border: 1px solid #2a2a4a;
+            border-radius: 8px;
+        }
+
+        .existing-thumb {
+            border-radius: 6px;
+            overflow: hidden;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: border-color .15s, opacity .15s;
+            aspect-ratio: 1;
+        }
+
+        .existing-thumb img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        .existing-thumb:hover { border-color: #5b21b6; }
+        .existing-thumb.selected { border-color: #b47fff; }
+
+        .existing-selected-hint {
+            font-size: .7rem;
+            color: #6b5a8a;
+            margin-top: .4rem;
+            min-height: 1rem;
+        }
+
+        /* Picture upload area */
+        .pic-upload {
+            border: 2px dashed #2a2a4a;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: border-color .2s;
+            overflow: hidden;
+        }
+
+        .pic-upload:hover { border-color: #5b21b6; }
+
+        .pic-upload input[type="file"] {
+            display: none;
+        }
+
+        .pic-label {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: .4rem;
+            padding: 1.25rem;
+            cursor: pointer;
+            min-height: 80px;
+        }
+
+        .pic-label.has-preview { padding: 0; }
+
+        .pic-preview {
+            width: 100%;
+            aspect-ratio: 1;
+            object-fit: cover;
+            display: none;
+            border-radius: 6px;
+        }
+
+        .pic-placeholder-icon { font-size: 1.5rem; color: #3a2a5a; }
+        .pic-placeholder-text { font-size: .75rem; color: #4a3a6a; text-align: center; }
+
+        .btn-submit {
+            width: 100%;
+            margin-top: .5rem;
+            padding: .75rem;
+            background: #5b21b6;
+            border: none;
+            border-radius: 8px;
+            color: #fff;
+            font-family: 'Raleway', sans-serif;
+            font-size: .95rem;
+            font-weight: 700;
+            letter-spacing: .06em;
+            cursor: pointer;
+            transition: background .2s;
+        }
+        .btn-submit:hover { background: #6d28d9; }
+
+        /* ── Users table ── */
+        .section-card {
+            background: #14142b;
+            border: 1px solid #2a2a4a;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 2rem;
+        }
+
+        .section-card h3 {
+            font-family: 'Raleway', sans-serif;
+            font-size: .75rem;
+            font-weight: 700;
+            letter-spacing: .1em;
+            text-transform: uppercase;
+            padding: .85rem 1rem;
+            border-bottom: 1px solid #2a2a4a;
+            color: #6b5a8a;
+        }
+
+        table { width: 100%; border-collapse: collapse; font-size: .875rem; }
+        th {
+            text-align: left;
+            padding: .6rem 1rem;
+            font-size: .7rem;
+            font-weight: 700;
+            letter-spacing: .08em;
+            text-transform: uppercase;
+            color: #4a3a6a;
+            border-bottom: 1px solid #2a2a4a;
+        }
+        td { padding: .65rem 1rem; border-bottom: 1px solid #1a1a2e; }
+        tr:last-child td { border-bottom: none; }
+
+        .role-pill {
+            display: inline-block;
+            padding: .15rem .55rem;
+            border-radius: 20px;
+            font-size: .7rem;
+            font-weight: 700;
+            letter-spacing: .06em;
+            text-transform: uppercase;
+            margin-right: .2rem;
+        }
+        .role-admin { background: rgba(180,120,255,.2); color: #b47fff; }
+        .role-user  { background: rgba(100,181,246,.15); color: #64b5f6; }
+
+        code {
+            background: #0a0a1a;
+            border: 1px solid #2a2a4a;
+            border-radius: 4px;
+            padding: .15rem .4rem;
+            font-size: .8rem;
+            color: #b47fff;
+        }
+
+        .hint { font-size: .8rem; color: #4a3a6a; padding: 1rem; }
+
+        /* ── Log viewer ── */
+        .log-section { margin-bottom: 2.5rem; }
+
+        .log-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1.75rem;
+        }
+
+        .log-header h2 { margin-bottom: 0; }
+
+        .log-controls { display: flex; gap: .5rem; align-items: center; }
+
+        .log-auto-badge {
+            font-size: .65rem;
+            font-weight: 700;
+            letter-spacing: .08em;
+            text-transform: uppercase;
+            color: #86efac;
+            background: rgba(34,197,94,.1);
+            border: 1px solid rgba(34,197,94,.25);
+            border-radius: 20px;
+            padding: .15rem .55rem;
+        }
+
+        .btn-log-clear {
+            background: transparent;
+            border: 1px solid #2a1a2a;
+            border-radius: 6px;
+            color: #4a3a6a;
+            font-family: 'Lato', sans-serif;
+            font-size: .75rem;
+            padding: .25rem .65rem;
+            cursor: pointer;
+            transition: color .2s, border-color .2s;
+        }
+        .btn-log-clear:hover { color: #b47fff; border-color: #5b21b6; }
+
+        .log-box {
+            background: #070710;
+            border: 1px solid #1a1a35;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .log-body {
+            height: 380px;
+            overflow-y: auto;
+            padding: .85rem 1rem;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: .78rem;
+            line-height: 1.55;
+            scroll-behavior: smooth;
+        }
+
+        .log-body::-webkit-scrollbar { width: 6px; }
+        .log-body::-webkit-scrollbar-track { background: #070710; }
+        .log-body::-webkit-scrollbar-thumb { background: #2a2a4a; border-radius: 3px; }
+
+        .log-line { white-space: pre-wrap; word-break: break-all; color: #8888aa; }
+        .log-line.ll-info    { color: #86efac; }
+        .log-line.ll-warning { color: #fcd34d; }
+        .log-line.ll-error   { color: #fca5a5; }
+        .log-line.ll-comment { color: #818cf8; }
+        .log-line.ll-section { color: #c084fc; font-weight: bold; }
+        .log-line.ll-dj      { color: #38bdf8; }
+        .log-line.ll-empty   { height: .4rem; }
+
+        .log-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: .4rem 1rem;
+            border-top: 1px solid #1a1a35;
+            font-size: .68rem;
+            color: #3a2a5a;
+        }
+
+        /* ── Toast ── */
+        .toast {
+            position: fixed;
+            bottom: 1.5rem;
+            left: 50%;
+            transform: translateX(-50%) translateY(10px);
+            background: #14142b;
+            border: 1px solid #2a2a4a;
+            border-radius: 8px;
+            padding: .6rem 1.25rem;
+            font-size: .85rem;
+            color: #b47fff;
+            opacity: 0;
+            transition: opacity .3s, transform .3s;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+        .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+        .toast.error { border-color: rgba(239,68,68,.4); color: #fca5a5; }
+
+        /* ── Inline name editor ── */
+        .user-name-input {
+            background: #0a0a1a;
+            border: 1px solid #5b21b6;
+            border-radius: 5px;
+            color: #fff;
+            font-size: .875rem;
+            font-family: 'Lato', sans-serif;
+            padding: .2rem .5rem;
+            width: 140px;
+            outline: none;
+        }
+
+        .btn-edit-name {
+            background: none;
+            border: none;
+            color: #4a3a6a;
+            cursor: pointer;
+            font-size: .85rem;
+            padding: 0 .3rem;
+            transition: color .15s;
+            vertical-align: middle;
+        }
+        .btn-edit-name:hover { color: #b47fff; }
+
+        /* ── Playlist pool ── */
+        .pool-list {
+            display: flex;
+            flex-direction: column;
+            gap: .5rem;
+            margin-bottom: 1rem;
+        }
+
+        .pool-item {
+            display: flex;
+            align-items: center;
+            gap: .75rem;
+            background: #14142b;
+            border: 1px solid #2a2a4a;
+            border-radius: 8px;
+            padding: .65rem .85rem;
+            transition: border-color .2s;
+        }
+
+        .pool-item.inactive { opacity: .45; }
+
+        .pool-item-label {
+            flex: 1;
+            font-size: .875rem;
+            font-weight: 700;
+        }
+
+        .pool-item-id {
+            font-family: 'Courier New', monospace;
+            font-size: .7rem;
+            color: #4a3a6a;
+        }
+
+        .btn-pool-toggle {
+            background: none;
+            border: 1px solid #2a2a4a;
+            border-radius: 5px;
+            color: #6b5a8a;
+            font-size: .72rem;
+            font-weight: 700;
+            padding: .2rem .55rem;
+            cursor: pointer;
+            transition: background .2s, color .2s;
+            white-space: nowrap;
+        }
+        .btn-pool-toggle.active { border-color: #2e7d52; color: #86efac; background: rgba(34,197,94,.07); }
+        .btn-pool-toggle.active:hover { background: rgba(34,197,94,.18); }
+        .btn-pool-toggle:not(.active):hover { background: rgba(180,120,255,.1); color: #b47fff; border-color: #5b21b6; }
+
+        .btn-pool-remove {
+            background: none;
+            border: 1px solid #2a1a2a;
+            border-radius: 5px;
+            color: #6b3a4a;
+            font-size: .72rem;
+            padding: .2rem .55rem;
+            cursor: pointer;
+            transition: background .2s, color .2s;
+        }
+        .btn-pool-remove:hover { background: rgba(239,68,68,.1); color: #f87171; border-color: rgba(239,68,68,.3); }
+
+        .pool-search-row {
+            display: flex;
+            gap: .6rem;
+            margin-bottom: 1rem;
+        }
+
+        .pool-search-input {
+            flex: 1;
+            background: #0a0a1a;
+            border: 1px solid #2a2a4a;
+            border-radius: 6px;
+            padding: .55rem .75rem;
+            color: #fff;
+            font-size: .875rem;
+            font-family: 'Lato', sans-serif;
+            outline: none;
+            transition: border-color .2s;
+        }
+        .pool-search-input:focus { border-color: #7c3aed; }
+
+        .btn-pool-search {
+            background: #5b21b6;
+            border: none;
+            border-radius: 6px;
+            color: #fff;
+            font-family: 'Raleway', sans-serif;
+            font-size: .875rem;
+            font-weight: 700;
+            padding: .55rem 1.1rem;
+            cursor: pointer;
+            transition: background .2s;
+            white-space: nowrap;
+        }
+        .btn-pool-search:hover { background: #6d28d9; }
+        .btn-pool-search:disabled { opacity: .5; cursor: not-allowed; }
+
+        .pool-results {
+            display: flex;
+            flex-direction: column;
+            gap: .4rem;
+        }
+
+        .pool-result-item {
+            display: flex;
+            align-items: center;
+            gap: .75rem;
+            background: #0a0a1a;
+            border: 1px solid #1a1a30;
+            border-radius: 7px;
+            padding: .5rem .75rem;
+        }
+
+        .pool-result-img {
+            width: 36px;
+            height: 36px;
+            border-radius: 4px;
+            object-fit: cover;
+            background: #1a1a35;
+            flex-shrink: 0;
+        }
+
+        .pool-result-text { flex: 1; min-width: 0; }
+
+        .pool-result-name {
+            font-size: .875rem;
+            font-weight: 700;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .pool-result-owner { font-size: .72rem; color: #4a3a6a; }
+
+        .btn-pool-add {
+            background: #1a3d2a;
+            border: 1px solid #2e7d52;
+            border-radius: 5px;
+            color: #86efac;
+            font-size: .72rem;
+            font-weight: 700;
+            padding: .25rem .65rem;
+            cursor: pointer;
+            transition: background .2s;
+            white-space: nowrap;
+        }
+        .btn-pool-add:hover { background: #2e7d52; }
+        .btn-pool-add:disabled { opacity: .4; cursor: not-allowed; }
+
+        .pool-empty { font-size: .82rem; color: #3a2a5a; padding: .5rem 0; }
+
+        /* ── Song requests ── */
+        .req-table { width: 100%; border-collapse: collapse; font-size: .875rem; }
+        .req-table th {
+            text-align: left;
+            font-size: .65rem;
+            font-weight: 700;
+            letter-spacing: .1em;
+            text-transform: uppercase;
+            color: #4a3a6a;
+            padding: .6rem 1rem;
+            border-bottom: 1px solid #2a2a4a;
+        }
+        .req-table td { padding: .6rem 1rem; border-bottom: 1px solid #1a1a35; vertical-align: middle; }
+        .req-table tr:last-child td { border-bottom: none; }
+        .req-table tr:hover td { background: #0f0f22; }
+
+        .req-art {
+            width: 36px; height: 36px; border-radius: 4px;
+            object-fit: cover; background: #1a1a35; display: block;
+        }
+
+        .req-badge {
+            display: inline-block;
+            font-size: .6rem;
+            font-weight: 700;
+            letter-spacing: .07em;
+            text-transform: uppercase;
+            padding: .2rem .45rem;
+            border-radius: 4px;
+        }
+        .req-badge.pending  { background: rgba(245,158,11,.15); color: #fbbf24; border: 1px solid #b45309; }
+        .req-badge.approved { background: rgba(91,33,182,.3);   color: #b47fff; border: 1px solid #5b21b6; }
+        .req-badge.played   { background: rgba(134,239,172,.1); color: #86efac; border: 1px solid #2e7d52; }
+        .req-badge.rejected { background: rgba(239,68,68,.1);   color: #fca5a5; border: 1px solid #991b1b; }
+
+        .req-actions { display: flex; gap: .4rem; }
+        .btn-approve {
+            background: #1a3d2a; color: #86efac; border: 1px solid #2e7d52;
+            border-radius: 6px; font-size: .75rem; font-weight: 700;
+            padding: .25rem .65rem; cursor: pointer; transition: background .2s;
+        }
+        .btn-approve:hover { background: #2e7d52; }
+        .btn-reject {
+            background: #3b1111; color: #fca5a5; border: 1px solid #991b1b;
+            border-radius: 6px; font-size: .75rem; font-weight: 700;
+            padding: .25rem .65rem; cursor: pointer; transition: background .2s;
+        }
+        .btn-reject:hover { background: #991b1b; }
+        .req-empty { font-size: .82rem; color: #3a2a5a; text-align: center; padding: 1.25rem; }
+    </style>
+</head>
+<body>
+    <header>
+        <span class="brand">🛡️ SRS RADIO <span class="badge">Admin</span></span>
+        <nav>
+            <a href="{{ path('app_radio') }}">Radio</a>
+            <a href="{{ path('setup') }}">Setup</a>
+            <a href="{{ path('app_admin_logout') }}" class="danger">Sign out</a>
+        </nav>
+    </header>
+
+    <main>
+
+        {# Flash messages from colleague create/delete #}
+        {% for label, messages in app.flashes %}
+            {% for message in messages %}
+                <div class="flash {{ label }}">{{ message }}</div>
+            {% endfor %}
+        {% endfor %}
+
+        {# ── Radio controls ── #}
+        <h2>Radio controls</h2>
+        <div class="radio-grid">
+            <div class="card">
+                <div class="card-title">Volume</div>
+                <div class="volume-display">
+                    <div class="volume-number" id="vol-number">{{ volume ?? '–' }}</div>
+                    <div class="volume-label">volume</div>
+                    {% if backend %}<div class="volume-backend">via {{ backend }}</div>{% endif %}
+                </div>
+                <div class="volume-bar-track">
+                    <div class="volume-bar-fill" id="vol-bar"
+                         style="width: {{ volume is not null ? volume : 0 }}%"></div>
+                </div>
+                <div class="controls">
+                    <button class="btn btn-vol-down" onclick="changeVolume('down')">▼ Down</button>
+                    <button class="btn btn-vol-up"   onclick="changeVolume('up')">▲ Up</button>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">Playback</div>
+
+                <div class="now-playing">
+                    <img id="np-art" class="np-art" src="" alt="" style="display:none">
+                    <div class="np-text">
+                        <div class="np-track" id="np-track">—</div>
+                        <div class="np-artist" id="np-artist">—</div>
+                    </div>
+                    <div class="np-status" id="np-status"></div>
+                </div>
+
+                <div class="controls" style="margin-top:1rem">
+                    <button class="btn btn-start"   id="btn-start"   onclick="startRadio()" style="display:none">▶ Start</button>
+                    <button class="btn btn-stop"    id="btn-stop"    onclick="stopRadio()"  style="display:none">■ Stop</button>
+                    <button class="btn btn-pause"   id="btn-pause"   onclick="togglePause()">⏸ Pause</button>
+                    <button class="btn btn-next"    onclick="skipNext()">⏭ Next</button>
+                    <button class="btn btn-restart" onclick="restartRadio()">🔄 Restart</button>
+                </div>
+            </div>
+        </div>
+
+        {# ── Song requests ── #}
+        <div class="section">
+            <div class="section-header">
+                <h2>🎵 Song requests</h2>
+                <span class="section-count" id="req-pending-count"></span>
+            </div>
+
+            <div class="section-card">
+                <table class="req-table">
+                    <thead>
+                        <tr>
+                            <th></th>
+                            <th>Track</th>
+                            <th>Requested by</th>
+                            <th>When</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="req-tbody">
+                        <tr><td colspan="6" class="req-empty">Loading…</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        {# ── Playlist pool ── #}
+        <div class="section">
+            <div class="section-header">
+                <h2>🎵 Playlist pool</h2>
+                <span class="section-count" id="pool-count"></span>
+            </div>
+
+            <div class="section-card" style="padding:1.25rem">
+                <div id="pool-list" class="pool-list">
+                    <p class="pool-empty">Loading…</p>
+                </div>
+
+                <div class="card-title" style="margin-top:1.5rem;margin-bottom:.75rem">Add playlist from Spotify</div>
+                <div class="pool-search-row">
+                    <input type="text" id="pool-search-input" class="pool-search-input"
+                           placeholder="Search Spotify playlists…"
+                           onkeydown="if(event.key==='Enter') searchPlaylists()">
+                    <button class="btn-pool-search" id="pool-search-btn" onclick="searchPlaylists()">Search</button>
+                </div>
+                <div id="pool-results" class="pool-results"></div>
+            </div>
+        </div>
+
+        {# ── Radio log ── #}
+        <div class="log-section">
+            <div class="log-header">
+                <h2>Radio log</h2>
+                <div class="log-controls">
+                    <span class="log-auto-badge" id="log-auto-badge">● live</span>
+                    <button class="btn-log-clear" onclick="toggleLogScroll()">📌 Pin</button>
+                </div>
+            </div>
+            <div class="log-box">
+                <div class="log-body" id="log-body"></div>
+                <div class="log-footer">
+                    <span id="log-line-count">—</span>
+                    <span id="log-updated">—</span>
+                </div>
+            </div>
+        </div>
+
+        {# ── Birthday calendar ── #}
+        <div class="section">
+            <div class="section-header">
+                <h2>🎂 Birthday calendar</h2>
+                <span class="section-count">{{ colleagues|length }} colleague{{ colleagues|length != 1 ? 's' : '' }}</span>
+            </div>
+
+            <div class="birthday-layout">
+                {# Colleague grid #}
+                <div>
+                    {% if colleagues is empty %}
+                        <p class="no-colleagues">No colleagues yet — add one using the form.</p>
+                    {% else %}
+                        <div class="colleague-grid">
+                            {% for c in colleagues %}
+                                {% set isToday = c.birthdate|date('m-d') == 'now'|date('m-d') %}
+                                <div class="colleague-card {{ isToday ? 'is-today' : '' }}">
+                                    {% if isToday %}<span class="today-badge">🎉 Today!</span>{% endif %}
+
+                                    {% if c.picture %}
+                                        <img src="/images/colleagues/{{ c.picture }}" alt="{{ c.name }}">
+                                    {% else %}
+                                        <div class="colleague-placeholder">👤</div>
+                                    {% endif %}
+
+                                    <div class="colleague-info">
+                                        <div class="colleague-name">{{ c.name }}</div>
+                                        <div class="colleague-bday">{{ c.birthdate|date('Y-m-d') }}</div>
+                                    </div>
+
+                                    <form method="post" action="{{ path('colleagues') }}/{{ c.id }}"
+                                          onsubmit="return confirm('Remove {{ c.name|e('js') }}?')">
+                                        <input type="hidden" name="_method" value="DELETE">
+                                        <input type="hidden" name="_return_to" value="admin">
+                                        <button type="submit" class="btn-remove">Remove</button>
+                                    </form>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+
+                {# Add form #}
+                <div>
+                    <form class="add-form" method="post" action="{{ path('colleagues') }}"
+                          enctype="multipart/form-data">
+                        <div class="add-form-title">Add colleague</div>
+                        <input type="hidden" name="_return_to" value="admin">
+
+                        <div class="field">
+                            <label for="c-name">Name</label>
+                            <input type="text" id="c-name" name="name"
+                                   placeholder="e.g. Jan de Vries" required>
+                        </div>
+
+                        <div class="field">
+                            <label for="c-bday">Date of birth</label>
+                            <input type="text" id="c-bday" name="birthdate"
+                                   placeholder="YYYY-MM-DD" pattern="\d{4}-\d{2}-\d{2}"
+                                   title="Use format YYYY-MM-DD, e.g. 1990-05-11" required>
+                        </div>
+
+                        <div class="field">
+                            <label>Photo (optional)</label>
+
+                            {# Source toggle #}
+                            <div class="pic-tabs">
+                                <button type="button" class="pic-tab active" onclick="switchPicTab('upload')">Upload from device</button>
+                                <button type="button" class="pic-tab" onclick="switchPicTab('existing')"
+                                        {{ existing_images is empty ? 'disabled' : '' }}>
+                                    Choose existing
+                                    {% if existing_images is not empty %}
+                                        <span class="pic-tab-count">{{ existing_images|length }}</span>
+                                    {% endif %}
+                                </button>
+                            </div>
+
+                            {# Upload panel #}
+                            <div id="panel-upload">
+                                <div class="pic-upload" onclick="document.getElementById('c-pic').click()">
+                                    <input type="file" id="c-pic" name="picture"
+                                           accept="image/*" onchange="previewPic(this)">
+                                    <label class="pic-label" id="pic-label" for="c-pic">
+                                        <img id="pic-preview" class="pic-preview" alt="Preview">
+                                        <span class="pic-placeholder-icon">📷</span>
+                                        <span class="pic-placeholder-text">Click to choose a photo</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            {# Existing images panel #}
+                            <div id="panel-existing" style="display:none">
+                                <input type="hidden" name="existing_picture" id="existing_picture" value="">
+                                <div class="existing-grid">
+                                    {% for img in existing_images %}
+                                        <div class="existing-thumb" onclick="selectExisting(this, '{{ img|e('html_attr') }}')"
+                                             title="{{ img }}">
+                                            <img src="/images/colleagues/{{ img|e('html_attr') }}" alt="{{ img }}">
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                                <p id="existing-selected-name" class="existing-selected-hint"></p>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn-submit">Add to calendar</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        {# ── Users ── #}
+        <div class="section-card">
+            <h3>Users ({{ users|length }})</h3>
+            {% if users is empty %}
+                <p class="hint">No users. Create one: <code>bin/console app:create-user</code></p>
+            {% else %}
+                <table>
+                    <thead>
+                        <tr><th>#</th><th>Name</th><th>Email</th><th>Roles</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for user in users %}
+                        <tr>
+                            <td>{{ user.id }}</td>
+                            <td>
+                                <span class="user-name-display" id="name-display-{{ user.id }}">{{ user.displayName }}</span>
+                                <input class="user-name-input" id="name-input-{{ user.id }}"
+                                       type="text" value="{{ user.name ?? '' }}"
+                                       placeholder="{{ user.displayName }}"
+                                       style="display:none"
+                                       data-user-id="{{ user.id }}">
+                                <button class="btn-edit-name" onclick="editName({{ user.id }})" id="btn-edit-{{ user.id }}">✎</button>
+                            </td>
+                            <td>{{ user.email }}</td>
+                            <td>
+                                {% for role in user.roles %}
+                                    <span class="role-pill {{ role == 'ROLE_ADMIN' ? 'role-admin' : 'role-user' }}">
+                                        {{ role|replace({'ROLE_': ''}) }}
+                                    </span>
+                                {% endfor %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% endif %}
+        </div>
+
+    </main>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        /* ── Picture tabs ── */
+        function switchPicTab(tab) {
+            document.getElementById('panel-upload').style.display   = tab === 'upload'   ? '' : 'none';
+            document.getElementById('panel-existing').style.display = tab === 'existing' ? '' : 'none';
+            document.querySelectorAll('.pic-tab').forEach((el, i) => {
+                el.classList.toggle('active', (i === 0) === (tab === 'upload'));
+            });
+
+            if (tab === 'upload') {
+                // Clear existing selection when switching back to upload
+                document.getElementById('existing_picture').value = '';
+                document.querySelectorAll('.existing-thumb').forEach(t => t.classList.remove('selected'));
+                document.getElementById('existing-selected-name').textContent = '';
+            } else {
+                // Clear upload input when switching to existing
+                document.getElementById('c-pic').value = '';
+                resetUploadPreview();
+            }
+        }
+
+        function selectExisting(el, filename) {
+            document.querySelectorAll('.existing-thumb').forEach(t => t.classList.remove('selected'));
+            el.classList.add('selected');
+            document.getElementById('existing_picture').value = filename;
+            document.getElementById('existing-selected-name').textContent = filename;
+        }
+
+        /* ── Upload preview ── */
+        function resetUploadPreview() {
+            const preview = document.getElementById('pic-preview');
+            const label   = document.getElementById('pic-label');
+            preview.style.display = 'none';
+            preview.src = '';
+            label.querySelector('.pic-placeholder-icon').style.display = '';
+            label.querySelector('.pic-placeholder-text').textContent = 'Click to choose a photo';
+            label.classList.remove('has-preview');
+        }
+
+        function previewPic(input) {
+            const preview = document.getElementById('pic-preview');
+            const label   = document.getElementById('pic-label');
+
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = e => {
+                    preview.src = e.target.result;
+                    preview.style.display = 'block';
+                    label.querySelector('.pic-placeholder-icon').style.display = 'none';
+                    label.querySelector('.pic-placeholder-text').textContent = input.files[0].name;
+                    label.classList.add('has-preview');
+                };
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+
+        /* ── Now playing poller ── */
+        async function pollNowPlaying() {
+            try {
+                const res  = await fetch('{{ path('app_radio_nowplaying') }}');
+                const data = await res.json();
+
+                document.getElementById('np-track').textContent  = data.track  || '—';
+                document.getElementById('np-artist').textContent = data.artist || '—';
+
+                const art    = document.getElementById('np-art');
+                const status = document.getElementById('np-status');
+
+                if (data.image) {
+                    art.src           = data.image;
+                    art.style.display = 'block';
+                } else {
+                    art.style.display = 'none';
+                }
+
+                const playing = data.is_playing || data.status === 'playing';
+                status.textContent  = playing ? '▶ Playing' : data.status === 'idle' ? 'Idle' : data.status;
+                status.className    = 'np-status' + (playing ? ' playing' : '');
+            } catch (_) {}
+        }
+
+        function setRadioRunning(running) {
+            document.getElementById('btn-start').style.display   = running ? 'none' : '';
+            document.getElementById('btn-stop').style.display    = running ? ''     : 'none';
+            document.getElementById('btn-pause').style.display   = running ? ''     : 'none';
+            document.querySelector('.btn-next').style.display    = running ? ''     : 'none';
+            document.querySelector('.btn-restart').style.display = running ? ''     : 'none';
+        }
+
+        async function pollState() {
+            await pollNowPlaying();
+            try {
+                const res  = await fetch('{{ path('app_admin_state') }}');
+                const data = await res.json();
+                setPauseButton(data.paused);
+                setRadioRunning(data.running);
+            } catch (_) {}
+        }
+
+        pollState();
+        setInterval(pollState, 5000);
+
+        /* ── Volume / next controls ── */
+        let toastTimer;
+
+        function showToast(msg, isError = false) {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.className = 'toast show' + (isError ? ' error' : '');
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => t.className = 'toast', 2500);
+        }
+
+        function setVolume(vol) {
+            document.getElementById('vol-number').textContent = vol;
+            document.getElementById('vol-bar').style.width = vol + '%';
+        }
+
+        async function changeVolume(direction) {
+            const btns = document.querySelectorAll('.btn-vol-up, .btn-vol-down');
+            btns.forEach(b => b.disabled = true);
+            try {
+                const res = await fetch('{{ path('app_admin_volume_up') }}'.replace('/up', '/' + direction), {
+                    method: 'POST',
+                    headers: {'X-Requested-With': 'XMLHttpRequest'},
+                });
+                const data = await res.json();
+                if (data.volume !== undefined) setVolume(data.volume);
+                if (!data.success) showToast(data.message || 'Failed', true);
+            } catch (e) {
+                showToast('Request failed', true);
+            } finally {
+                btns.forEach(b => b.disabled = false);
+            }
+        }
+
+        async function skipNext() {
+            const btn = document.querySelector('.btn-next');
+            btn.disabled = true;
+            try {
+                const res  = await fetch('{{ path('app_admin_next') }}', { method: 'POST' });
+                const data = await res.json();
+                showToast(data.message || (data.success ? 'Skipped!' : 'Failed'), !data.success);
+            } catch (e) {
+                showToast('Request failed', true);
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        function setPauseButton(paused) {
+            const btn = document.getElementById('btn-pause');
+            btn.textContent = paused ? '▶ Resume' : '⏸ Pause';
+            btn.classList.toggle('is-paused', paused);
+        }
+
+        async function togglePause() {
+            const btn = document.getElementById('btn-pause');
+            btn.disabled = true;
+            try {
+                const res  = await fetch('{{ path('app_admin_pause') }}', { method: 'POST' });
+                const data = await res.json();
+                if (data.success) setPauseButton(data.paused);
+                showToast(data.message || (data.success ? 'Done' : 'Failed'), !data.success);
+            } catch (e) {
+                showToast('Request failed', true);
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        async function stopRadio() {
+            const btn = document.getElementById('btn-stop');
+            btn.disabled = true;
+            btn.textContent = '■ Stopping…';
+            try {
+                const res  = await fetch('{{ path('app_admin_stop') }}', { method: 'POST' });
+                const data = await res.json();
+                showToast(data.message || (data.success ? 'Stopping…' : 'Failed'), !data.success);
+                if (data.success) setTimeout(pollState, 3000);
+            } catch (e) {
+                showToast('Request failed', true);
+            } finally {
+                setTimeout(() => { btn.disabled = false; btn.textContent = '■ Stop'; }, 5000);
+            }
+        }
+
+        async function startRadio() {
+            const btn = document.getElementById('btn-start');
+            btn.disabled = true;
+            btn.textContent = '▶ Starting…';
+            try {
+                const res  = await fetch('{{ path('app_admin_start') }}', { method: 'POST' });
+                const data = await res.json();
+                showToast(data.message || (data.success ? 'Starting…' : 'Failed'), !data.success);
+                if (data.success) setTimeout(pollState, 3000);
+            } catch (e) {
+                showToast('Request failed', true);
+            } finally {
+                setTimeout(() => { btn.disabled = false; btn.textContent = '▶ Start'; }, 5000);
+            }
+        }
+
+        async function restartRadio() {
+            const btn = document.querySelector('.btn-restart');
+            btn.disabled = true;
+            btn.textContent = '🔄 Restarting…';
+            try {
+                const res  = await fetch('{{ path('app_admin_restart') }}', { method: 'POST' });
+                const data = await res.json();
+                showToast(data.message || (data.success ? 'Restarting…' : 'Failed'), !data.success);
+            } catch (e) {
+                showToast('Request failed', true);
+            } finally {
+                setTimeout(() => { btn.disabled = false; btn.textContent = '🔄 Restart'; }, 8000);
+            }
+        }
+
+        /* ── Log viewer ── */
+        let logPinned = false;
+
+        function classifyLine(text) {
+            if (text === '') return 'll-empty';
+            const t = text.toLowerCase();
+            if (t.includes('[error]') || t.includes('error:') || t.includes('exception')) return 'll-error';
+            if (t.includes('[warning]') || t.includes('warning:') || t.startsWith(' ! ')) return 'll-warning';
+            if (t.includes('[ok]') || t.includes('[success]') || t.startsWith(' [ok]')) return 'll-info';
+            if (t.includes('dj:') || t.includes('[birthday]') || t.includes('[alarm]') || t.includes('[comment]')) return 'll-dj';
+            if (t.startsWith(' --- ') || (text.startsWith(' ') && text.trim().startsWith('SRS FM'))) return 'll-section';
+            if (t.includes('<info>') || t.includes('→ sonos') || t.includes('→ spotify') || t.includes('verbonden')) return 'll-info';
+            if (t.includes('<comment>') || t.includes('pool:') || t.includes('backend:') || t.includes('waiting') || t.startsWith(' > ')) return 'll-comment';
+            return '';
+        }
+
+        function toggleLogScroll() {
+            logPinned = !logPinned;
+            const badge = document.getElementById('log-auto-badge');
+            const btn   = document.querySelector('.btn-log-clear');
+            badge.textContent = logPinned ? '● pinned' : '● live';
+            badge.style.color = logPinned ? '#fcd34d' : '#86efac';
+            badge.style.background = logPinned ? 'rgba(252,211,77,.1)' : 'rgba(34,197,94,.1)';
+            badge.style.borderColor = logPinned ? 'rgba(252,211,77,.25)' : 'rgba(34,197,94,.25)';
+            btn.textContent = logPinned ? '▶ Live' : '📌 Pin';
+        }
+
+        async function pollLog() {
+            try {
+                const res  = await fetch('{{ path('app_admin_log') }}');
+                const data = await res.json();
+                const body = document.getElementById('log-body');
+
+                const fragment = document.createDocumentFragment();
+                (data.lines || []).forEach(line => {
+                    const div = document.createElement('div');
+                    div.className = 'log-line ' + classifyLine(line);
+                    div.textContent = line || ' ';
+                    fragment.appendChild(div);
+                });
+
+                body.innerHTML = '';
+                body.appendChild(fragment);
+
+                document.getElementById('log-line-count').textContent = (data.lines || []).length + ' lines';
+                document.getElementById('log-updated').textContent = 'updated ' + new Date().toLocaleTimeString('nl-NL');
+
+                if (!logPinned) {
+                    body.scrollTop = body.scrollHeight;
+                }
+            } catch (_) {}
+        }
+
+        pollLog();
+        setInterval(pollLog, 4000);
+
+        /* ── Inline name editor ── */
+        function editName(id) {
+            const display = document.getElementById('name-display-' + id);
+            const input   = document.getElementById('name-input-' + id);
+            const btn     = document.getElementById('btn-edit-' + id);
+
+            display.style.display = 'none';
+            input.style.display   = 'inline-block';
+            btn.textContent       = '✔';
+            btn.onclick           = () => saveName(id);
+            input.focus();
+            input.select();
+
+            input.addEventListener('keydown', function handler(e) {
+                if (e.key === 'Enter')  { saveName(id); input.removeEventListener('keydown', handler); }
+                if (e.key === 'Escape') { cancelName(id); input.removeEventListener('keydown', handler); }
+            });
+        }
+
+        function cancelName(id) {
+            document.getElementById('name-display-' + id).style.display = '';
+            document.getElementById('name-input-' + id).style.display   = 'none';
+            const btn = document.getElementById('btn-edit-' + id);
+            btn.textContent = '✎';
+            btn.onclick     = () => editName(id);
+        }
+
+        async function saveName(id) {
+            const input = document.getElementById('name-input-' + id);
+            const name  = input.value.trim();
+            try {
+                const res  = await fetch('{{ path('app_admin_user_name', {'id': '__ID__'}) }}'.replace('__ID__', id), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name }),
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    document.getElementById('name-display-' + id).textContent = data.name;
+                    showToast('Name updated.');
+                } else {
+                    showToast('Failed to save.', true);
+                }
+            } catch (_) {
+                showToast('Request failed.', true);
+            }
+            cancelName(id);
+        }
+
+        /* ── Song requests ── */
+        function reqTimeAgo(ts) {
+            const diff = Math.floor(Date.now() / 1000) - ts;
+            if (diff < 60)    return 'just now';
+            if (diff < 3600)  return Math.floor(diff / 60) + 'm ago';
+            if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+            return Math.floor(diff / 86400) + 'd ago';
+        }
+
+        function escReq(str) {
+            return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        }
+
+        async function pollSongRequests() {
+            try {
+                const res  = await fetch('{{ path('app_admin_song_requests') }}');
+                const list = await res.json();
+                const tbody = document.getElementById('req-tbody');
+
+                if (!list.length) {
+                    tbody.innerHTML = '<tr><td colspan="6" class="req-empty">No requests yet.</td></tr>';
+                    document.getElementById('req-pending-count').textContent = '';
+                    return;
+                }
+
+                const pending = list.filter(r => r.status === 'pending').length;
+                document.getElementById('req-pending-count').textContent =
+                    pending ? pending + ' pending' : list.length + ' total';
+
+                tbody.innerHTML = list.map(r => {
+                    const canAct = r.status === 'pending';
+                    return '<tr>' +
+                        '<td>' + (r.imageUrl
+                            ? '<img class="req-art" src="' + escReq(r.imageUrl) + '" alt="">'
+                            : '<div class="req-art"></div>') + '</td>' +
+                        '<td><strong>' + escReq(r.title) + '</strong><br><span style="color:#6b5a8a;font-size:.8rem">' + escReq(r.artist) + '</span></td>' +
+                        '<td>' + escReq(r.requestedBy) + '</td>' +
+                        '<td style="color:#4a6a8a;font-size:.8rem">' + reqTimeAgo(r.requestedAt) + '</td>' +
+                        '<td><span class="req-badge ' + r.status + '">' + r.status.charAt(0).toUpperCase() + r.status.slice(1) + '</span></td>' +
+                        '<td><div class="req-actions">' +
+                            (canAct ? '<button class="btn-approve" onclick="approveRequest(' + r.id + ')">Approve</button>' : '') +
+                            (canAct ? '<button class="btn-reject"  onclick="rejectRequest(' + r.id + ')">Reject</button>'   : '') +
+                        '</div></td>' +
+                    '</tr>';
+                }).join('');
+            } catch (_) {}
+        }
+
+        async function approveRequest(id) {
+            try {
+                await fetch('{{ path('app_admin_song_request_approve', {'id': '__ID__'}) }}'.replace('__ID__', id), { method: 'POST' });
+                showToast('Request approved — will play at next song boundary!');
+                pollSongRequests();
+            } catch (_) { showToast('Failed', true); }
+        }
+
+        async function rejectRequest(id) {
+            try {
+                await fetch('{{ path('app_admin_song_request_reject', {'id': '__ID__'}) }}'.replace('__ID__', id), { method: 'POST' });
+                showToast('Request rejected.');
+                pollSongRequests();
+            } catch (_) { showToast('Failed', true); }
+        }
+
+        pollSongRequests();
+        setInterval(pollSongRequests, 8000);
+
+        /* ── Playlist pool ── */
+        let poolSearchResults = [];
+        let poolIds = new Set(); // currently added spotifyIds for "already added" state
+
+        async function loadPool() {
+            try {
+                const res  = await fetch('{{ path('app_admin_playlists') }}');
+                const list = await res.json();
+
+                poolIds = new Set(list.map(p => p.spotifyId));
+
+                const container = document.getElementById('pool-list');
+                document.getElementById('pool-count').textContent =
+                    list.length + ' playlist' + (list.length !== 1 ? 's' : '');
+
+                if (!list.length) {
+                    container.innerHTML = '<p class="pool-empty">No playlists yet — add one below.</p>';
+                    return;
+                }
+
+                container.innerHTML = list.map(p => `
+                    <div class="pool-item ${p.active ? '' : 'inactive'}" id="pool-item-${p.id}">
+                        <span class="pool-item-label">${escReq(p.label)}</span>
+                        <span class="pool-item-id">${escReq(p.spotifyId)}</span>
+                        <button class="btn-pool-toggle ${p.active ? 'active' : ''}"
+                                onclick="togglePlaylist(${p.id})">
+                            ${p.active ? 'Active' : 'Inactive'}
+                        </button>
+                        <button class="btn-pool-remove" onclick="removePlaylist(${p.id}, '${escReq(p.label)}')">Remove</button>
+                    </div>
+                `).join('');
+
+                // Refresh add-buttons in search results
+                renderSearchResults();
+            } catch (_) {}
+        }
+
+        async function togglePlaylist(id) {
+            try {
+                const res  = await fetch('{{ path('app_admin_playlist_toggle', {'id': '__ID__'}) }}'.replace('__ID__', id), { method: 'POST' });
+                const data = await res.json();
+                if (res.ok) {
+                    showToast(data.active ? 'Playlist enabled.' : 'Playlist disabled.');
+                    loadPool();
+                } else {
+                    showToast(data.error || 'Failed', true);
+                }
+            } catch (_) { showToast('Request failed.', true); }
+        }
+
+        async function removePlaylist(id, label) {
+            if (!confirm('Remove "' + label + '" from the pool?')) return;
+            try {
+                const res  = await fetch('{{ path('app_admin_playlist_remove', {'id': '__ID__'}) }}'.replace('__ID__', id), { method: 'DELETE' });
+                if (res.ok) {
+                    showToast('"' + label + '" removed from pool.');
+                    loadPool();
+                } else {
+                    showToast('Failed to remove.', true);
+                }
+            } catch (_) { showToast('Request failed.', true); }
+        }
+
+        async function addPlaylist(spotifyId, label) {
+            try {
+                const res  = await fetch('{{ path('app_admin_playlist_add') }}', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ spotifyId, label }),
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    showToast('"' + label + '" added to pool.');
+                    document.getElementById('pool-search-input').value = '';
+                    poolSearchResults = [];
+                    document.getElementById('pool-results').innerHTML = '';
+                    loadPool();
+                } else {
+                    showToast(data.error || 'Failed to add.', true);
+                }
+            } catch (_) { showToast('Request failed.', true); }
+        }
+
+        async function searchPlaylists() {
+            const input = document.getElementById('pool-search-input');
+            const btn   = document.getElementById('pool-search-btn');
+            const query = input.value.trim();
+            if (!query) return;
+
+            btn.disabled    = true;
+            btn.textContent = 'Searching…';
+
+            try {
+                const res  = await fetch('{{ path('app_admin_playlist_search') }}', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query }),
+                });
+                const data = await res.json();
+                poolSearchResults = data.results || [];
+                renderSearchResults();
+                if (data.error) showToast('Search error: ' + data.error, true);
+                if (!poolSearchResults.length) document.getElementById('pool-results').innerHTML = '<p class="pool-empty">No results found.</p>';
+            } catch (e) {
+                showToast('Search failed: ' + e.message, true);
+            } finally {
+                btn.disabled    = false;
+                btn.textContent = 'Search';
+            }
+        }
+
+        function renderSearchResults() {
+            const container = document.getElementById('pool-results');
+            if (!poolSearchResults.length) {
+                container.innerHTML = poolSearchResults !== null ? '' : '<p class="pool-empty">No results.</p>';
+                return;
+            }
+
+            container.innerHTML = poolSearchResults.map(r => {
+                const alreadyAdded = poolIds.has(r.id);
+                return `
+                    <div class="pool-result-item">
+                        ${r.image
+                            ? `<img class="pool-result-img" src="${escReq(r.image)}" alt="">`
+                            : `<div class="pool-result-img"></div>`}
+                        <div class="pool-result-text">
+                            <div class="pool-result-name">${escReq(r.name)}</div>
+                            <div class="pool-result-owner">${escReq(r.owner)}</div>
+                        </div>
+                        <button class="btn-pool-add"
+                                ${alreadyAdded ? 'disabled' : ''}
+                                onclick="addPlaylist('${escReq(r.id)}', '${escReq(r.name)}')">
+                            ${alreadyAdded ? '✓ Added' : '+ Add'}
+                        </button>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        loadPool();
+    </script>
+</body>
+</html>

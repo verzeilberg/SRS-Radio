@@ -147,6 +147,40 @@ class SpotifyService
         return null;
     }
 
+    /** Search Spotify for playlists matching $query, returns up to $limit results as [id, name, owner, image]. */
+    public function searchPlaylists(string $query, int $limit = 10): array
+    {
+        $token = $this->getValidToken();
+        if (!$token) {
+            return [];
+        }
+
+        $response = $this->httpClient->request('GET', 'https://api.spotify.com/v1/search', [
+            'headers' => ['Authorization' => 'Bearer ' . $token->getAccessToken()],
+            'query'   => ['q' => str_replace("'", '', $query), 'type' => 'playlist', 'limit' => $limit],
+            'timeout' => 15,
+        ]);
+
+        if ($response->getStatusCode() !== 200) {
+            return [];
+        }
+
+        $results = [];
+        foreach ($response->toArray()['playlists']['items'] ?? [] as $item) {
+            if (!$item || empty($item['id'])) {
+                continue;
+            }
+            $results[] = [
+                'id'    => $item['id'],
+                'name'  => $item['name'] ?? '',
+                'owner' => $item['owner']['display_name'] ?? '',
+                'image' => $item['images'][0]['url'] ?? null,
+            ];
+        }
+
+        return $results;
+    }
+
     public function getPlaylistTracks(string $playlistId): array
     {
         if (isset($this->playlistCache[$playlistId]) && (time() - $this->playlistCache[$playlistId]['at']) < 300) {
@@ -227,6 +261,38 @@ class SpotifyService
         }
 
         return null;
+    }
+
+    /** Search for tracks, returns array of [id, uri, title, artist, image] */
+    public function searchTracks(string $query, int $limit = 8): array
+    {
+        $token = $this->getValidToken();
+        if (!$token) {
+            return [];
+        }
+
+        $response = $this->httpClient->request('GET', 'https://api.spotify.com/v1/search', [
+            'headers' => ['Authorization' => 'Bearer ' . $token->getAccessToken()],
+            'query'   => ['q' => $query, 'type' => 'track', 'limit' => $limit],
+            'timeout' => 10,
+        ]);
+
+        if ($response->getStatusCode() !== 200) {
+            return [];
+        }
+
+        $results = [];
+        foreach ($response->toArray()['tracks']['items'] ?? [] as $item) {
+            $results[] = [
+                'id'     => $item['id'],
+                'uri'    => $item['uri'],
+                'title'  => $item['name'],
+                'artist' => implode(', ', array_column($item['artists'] ?? [], 'name')),
+                'image'  => $item['album']['images'][1]['url'] ?? $item['album']['images'][0]['url'] ?? null,
+            ];
+        }
+
+        return $results;
     }
 
     public function getAccessToken(): ?string

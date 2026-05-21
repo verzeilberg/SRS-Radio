@@ -62,14 +62,6 @@ services:
             $weatherHour: '%env(int:WEATHER_HOUR)%'
             $weatherMinute: '%env(int:WEATHER_MINUTE)%'
             $djClipIp: '%env(DJ_CLIP_IP)%'
-            $trackPools:
-                - { id: '1VGeD6EPilAaVp79AdPhtE', label: 'Mega Hit Mix'}
-                - { id: '3Me8NYy0WVXf6ZGX9khgEq', label: 'All Out 80s' }
-                - { id: '6U7QcTtyipCtL17Su1bxgj', label: 'All Out 90s' }
-                - { id: '7eMpggGjI2UdYxmqMgWzfw', label: 'All Out 00s' }
-                - { id: '1t0F16J7AC0ajHmGv7ihsh', label: 'All Out 10s' }
-                - { id: '54i1eiCTqTbXnjSPRpWTu8', label: 'All Out 2020s' }
-                - { id: '1SlAib5BO2Bb90Auow2rOd', label: 'Koningsdag 2026'}
 
     App\Service\TextToSpeechService:
         arguments:

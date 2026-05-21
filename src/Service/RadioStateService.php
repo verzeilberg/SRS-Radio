@@ -101,6 +101,76 @@ class RadioStateService
         file_put_contents($this->statePath, json_encode($state));
     }
 
+    public function setAlarm(string $key, string $summary): void
+    {
+        $state = $this->getState();
+        $state['alarm_active']  = true;
+        $state['alarm_key']     = $key;
+        $state['alarm_summary'] = $summary;
+        file_put_contents($this->statePath, json_encode($state));
+    }
+
+    public function clearAlarm(): void
+    {
+        $state = $this->getState();
+        unset($state['alarm_active'], $state['alarm_key'], $state['alarm_summary']);
+        file_put_contents($this->statePath, json_encode($state));
+    }
+
+    private function listenerNotesPath(): string
+    {
+        return dirname($this->statePath) . '/listener-notes.json';
+    }
+
+    public function addListenerNote(string $text, string $sender): void
+    {
+        $notes   = $this->getAllListenerNotes();
+        $notes[] = ['text' => $text, 'sender' => $sender, 'at' => time(), 'status' => 'queued'];
+        $this->saveListenerNotes($notes);
+    }
+
+    public function popListenerNote(): ?array
+    {
+        $notes = $this->getAllListenerNotes();
+        $index = null;
+        foreach ($notes as $i => $note) {
+            if (($note['status'] ?? 'queued') === 'queued') {
+                $index = $i;
+                break;
+            }
+        }
+        if ($index === null) {
+            return null;
+        }
+        $note            = $notes[$index];
+        $notes[$index]['status'] = 'played';
+        $this->saveListenerNotes($notes);
+        return $note;
+    }
+
+    public function getAllListenerNotes(): array
+    {
+        $path = $this->listenerNotesPath();
+        if (!file_exists($path)) {
+            return [];
+        }
+        $notes = json_decode(file_get_contents($path), true) ?: [];
+        // Back-compat: notes written before status field was added
+        foreach ($notes as &$note) {
+            $note['status'] ??= 'queued';
+        }
+        return $notes;
+    }
+
+    private function saveListenerNotes(array $notes): void
+    {
+        // Keep only the last 50 entries to prevent unbounded growth
+        if (count($notes) > 50) {
+            $notes = array_slice($notes, -50);
+        }
+        file_put_contents($this->listenerNotesPath(), json_encode(array_values($notes)));
+    }
+
     public function getState(): array
     {
         if (!file_exists($this->statePath)) {

@@ -228,6 +228,16 @@ XML;
         ]);
     }
 
+    public function pause(): void
+    {
+        $this->soap('Pause', ['InstanceID' => 0]);
+    }
+
+    public function resume(): void
+    {
+        $this->soap('Play', ['InstanceID' => 0, 'Speed' => 1]);
+    }
+
     public function stop(): void
     {
         $this->soap('Stop', ['InstanceID' => 0]);

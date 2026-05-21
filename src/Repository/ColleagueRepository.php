@@ -16,14 +16,13 @@ class ColleagueRepository extends ServiceEntityRepository
     public function findTodaysBirthdays(): array
     {
         $today = new \DateTimeImmutable('today');
+        $month = (int) $today->format('m');
+        $day   = (int) $today->format('d');
 
-        return $this->createQueryBuilder('c')
-            ->where('MONTH(c.birthdate) = :month')
-            ->andWhere('DAY(c.birthdate) = :day')
-            ->setParameter('month', (int) $today->format('m'))
-            ->setParameter('day',   (int) $today->format('d'))
-            ->orderBy('c.name', 'ASC')
-            ->getQuery()
-            ->getResult();
+        return array_values(array_filter(
+            $this->findBy([], ['name' => 'ASC']),
+            fn(Colleague $c) => (int) $c->getBirthdate()->format('m') === $month
+                             && (int) $c->getBirthdate()->format('d') === $day,
+        ));
     }
 }

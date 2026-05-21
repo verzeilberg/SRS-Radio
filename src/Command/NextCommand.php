@@ -22,12 +22,19 @@ class NextCommand extends Command
 
         $pid = (int) trim(file_get_contents($pidFile));
 
-        if ($pid <= 0 || !posix_kill($pid, 0)) {
-            $io->warning("Process $pid is not running.");
+        if ($pid <= 0) {
+            $io->warning('No valid PID found.');
             return Command::SUCCESS;
         }
 
-        posix_kill($pid, SIGUSR1);
+        // Write flag file so the web process (different user) can also trigger a skip.
+        file_put_contents(RadioStartCommand::skipFlagFile(), '1');
+
+        // Also send SIGUSR1 when we have permission (same user / CLI context).
+        if (posix_kill($pid, 0)) {
+            posix_kill($pid, SIGUSR1);
+        }
+
         $io->success('Skipping to next...');
 
         return Command::SUCCESS;

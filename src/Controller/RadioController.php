@@ -28,7 +28,7 @@ class RadioController extends AbstractController
         private string $projectDir,
     ) {}
 
-    #[Route('/', methods: ['GET'])]
+    #[Route('/', name: 'app_radio', methods: ['GET'])]
     public function index(): Response
     {
         return $this->render('radio/index.html.twig', ['station' => 'SRS FM']);
@@ -54,7 +54,7 @@ class RadioController extends AbstractController
         }
     }
 
-    #[Route('/setup', methods: ['GET'])]
+    #[Route('/setup', name: 'setup', methods: ['GET'])]
     public function setup(): Response
     {
         $spotifyToken = $this->em->getRepository(SpotifyToken::class)->findOneBy([]);
@@ -122,6 +122,9 @@ class RadioController extends AbstractController
             'birthday_active'   => (bool) ($state['birthday_active'] ?? false),
             'birthday_name'     => $state['birthday_name'] ?? null,
             'birthday_picture'  => isset($state['birthday_picture']) ? '/images/colleagues/' . $state['birthday_picture'] : null,
+            'alarm_active'      => (bool) ($state['alarm_active'] ?? false),
+            'alarm_key'         => $state['alarm_key'] ?? null,
+            'alarm_summary'     => $state['alarm_summary'] ?? null,
         ]);
     }
 

@@ -200,9 +200,41 @@ class TextToSpeechService
         }
     }
 
-    private function mixWithBed(string $voicePath, string $bedPath, string $outPath): void
+    public function generateWithBed(string $text, string $bedPath, float $bedVol = 0.35): string
     {
-        $vol = number_format($this->bedVol, 2, '.', '');
+        $dir = $this->projectDir . '/public/sounds/dj';
+        if (!is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+
+        $voicePath = $dir . '/' . sha1($text . $this->provider . $this->voice . $this->piperModel . $this->elevenLabsVoiceId) . '_voice.mp3';
+        $this->generateVoice($text, $voicePath);
+
+        if ($this->ffmpegAvailable() && file_exists($bedPath)) {
+            $mixFilename = sha1($text . $this->provider . $this->voice . $bedPath . $bedVol) . '.mp3';
+            $mixPath     = $dir . '/' . $mixFilename;
+            if (!file_exists($mixPath) || filesize($mixPath) === 0) {
+                @unlink($mixPath);
+                $this->mixWithBed($voicePath, $bedPath, $mixPath, $bedVol);
+            }
+            @unlink($voicePath);
+            return rtrim($this->serverBaseUrl, '/') . '/sounds/dj/' . $mixFilename;
+        }
+
+        $finalFilename = sha1($text . $this->provider . $this->voice . $this->piperModel . $this->elevenLabsVoiceId) . '.mp3';
+        $finalPath     = $dir . '/' . $finalFilename;
+        if ($this->ffmpegAvailable()) {
+            shell_exec('ffmpeg -y -i ' . escapeshellarg($voicePath) . ' -af loudnorm=I=-11:TP=-1.5 -q:a 4 ' . escapeshellarg($finalPath) . ' 2>&1');
+            @unlink($voicePath);
+        } elseif ($voicePath !== $finalPath) {
+            rename($voicePath, $finalPath);
+        }
+        return rtrim($this->serverBaseUrl, '/') . '/sounds/dj/' . $finalFilename;
+    }
+
+    private function mixWithBed(string $voicePath, string $bedPath, string $outPath, ?float $volOverride = null): void
+    {
+        $vol = number_format($volOverride ?? $this->bedVol, 2, '.', '');
 
         $voiceDur     = (float) trim(shell_exec(
             'ffprobe -v error -show_entries format=duration -of csv=p=0 '

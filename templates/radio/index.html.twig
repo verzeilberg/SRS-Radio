@@ -322,6 +322,89 @@
         color: rgba(255,255,255,0.3);
     }
 
+    /* ── Alarm popup ── */
+    #alarm-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 600;
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 2rem;
+        background: #0a0000;
+        overflow: hidden;
+    }
+    #alarm-overlay.active { display: flex; }
+
+    .alarm-bg-flash {
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(ellipse at center, rgba(200,0,0,0.35) 0%, transparent 70%);
+        animation: alarm-flash 0.9s ease-in-out infinite alternate;
+        pointer-events: none;
+    }
+
+    @keyframes alarm-flash {
+        from { opacity: 0.3; }
+        to   { opacity: 1; }
+    }
+
+    .alarm-icon {
+        font-size: clamp(4rem, 10vw, 7rem);
+        animation: alarm-shake 0.5s ease-in-out infinite;
+        z-index: 1;
+        line-height: 1;
+    }
+
+    @keyframes alarm-shake {
+        0%, 100% { transform: rotate(-6deg); }
+        50%       { transform: rotate(6deg); }
+    }
+
+    .alarm-key {
+        font-family: 'Raleway', sans-serif;
+        font-size: clamp(3rem, 10vw, 8rem);
+        font-weight: 900;
+        letter-spacing: 0.08em;
+        color: #ff2222;
+        text-shadow: 0 0 40px rgba(255,34,34,0.8), 0 0 80px rgba(255,34,34,0.4);
+        z-index: 1;
+        text-transform: uppercase;
+        animation: alarm-pulse-text 0.9s ease-in-out infinite alternate;
+    }
+
+    @keyframes alarm-pulse-text {
+        from { text-shadow: 0 0 20px rgba(255,34,34,0.5); }
+        to   { text-shadow: 0 0 60px rgba(255,34,34,1), 0 0 120px rgba(255,34,34,0.5); }
+    }
+
+    .alarm-summary {
+        font-family: 'Raleway', sans-serif;
+        font-size: clamp(1.1rem, 3vw, 2rem);
+        font-weight: 400;
+        color: rgba(255,255,255,0.75);
+        text-align: center;
+        max-width: 80vw;
+        line-height: 1.4;
+        z-index: 1;
+        animation: alarm-fade-in 0.5s ease both;
+    }
+
+    .alarm-label {
+        font-size: clamp(0.7rem, 1.5vw, 1rem);
+        letter-spacing: 0.35em;
+        text-transform: uppercase;
+        color: rgba(255,34,34,0.6);
+        font-weight: 700;
+        z-index: 1;
+    }
+
+    @keyframes alarm-fade-in {
+        from { opacity: 0; transform: translateY(12px); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
+
     /* ── Birthday popup ── */
     #birthday-overlay {
         position: fixed;
@@ -539,6 +622,14 @@
     </div>
 </div>
 
+<div id="alarm-overlay">
+    <div class="alarm-bg-flash"></div>
+    <div class="alarm-icon">🚨</div>
+    <div class="alarm-label">Highest Priority</div>
+    <div class="alarm-key" id="alarm-key"></div>
+    <div class="alarm-summary" id="alarm-summary"></div>
+</div>
+
 <div id="tune-in-overlay" style="position:fixed;inset:0;background:rgba(10,25,41,0.92);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.5rem;z-index:200;backdrop-filter:blur(4px);">
     <img src="/images/srs-logo.svg" alt="SRS FM" style="height:80px;filter:brightness(0) invert(1);opacity:0.9;">
     <button onclick="tuneIn()" style="background:#2ea3f2;color:#fff;border:none;border-radius:2rem;padding:0.85rem 2.5rem;font-size:1rem;font-family:'Raleway',sans-serif;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;cursor:pointer;">
@@ -553,7 +644,22 @@ let scheduledStartAt  = null; // 'HH:MM' from API, or null
 let currentDjClipUrl  = null;
 let audioUnlocked     = false;
 let birthdayActive    = false;
+let alarmActive       = false;
 let confettiInterval  = null;
+
+function showAlarm(key, summary) {
+    if (alarmActive) return;
+    alarmActive = true;
+    document.getElementById('alarm-key').textContent     = key;
+    document.getElementById('alarm-summary').textContent = summary;
+    document.getElementById('alarm-overlay').classList.add('active');
+}
+
+function hideAlarm() {
+    if (!alarmActive) return;
+    alarmActive = false;
+    document.getElementById('alarm-overlay').classList.remove('active');
+}
 
 function showBirthday(name, picture) {
     if (birthdayActive) return;
@@ -937,6 +1043,12 @@ async function poll() {
             showBirthday(data.birthday_name, data.birthday_picture || null);
         } else {
             hideBirthday();
+        }
+
+        if (data.alarm_active && data.alarm_key) {
+            showAlarm(data.alarm_key, data.alarm_summary || '');
+        } else {
+            hideAlarm();
         }
 
         setOnAir(data.is_playing);

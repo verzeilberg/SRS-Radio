@@ -3,9 +3,12 @@ namespace App\Command;
 
 use App\DTO\DjContext;
 use App\Entity\DjAnnouncement;
+use App\Entity\SongRequest;
 use App\Entity\Track;
 use App\Repository\ColleagueRepository;
 use App\Repository\DjAnnouncementRepository;
+use App\Repository\PlaylistRepository;
+use App\Repository\SongRequestRepository;
 use App\Repository\TrackRepository;
 use App\Service\DjScriptService;
 use App\Service\RadioStateService;
@@ -18,9 +21,11 @@ use App\Service\WeatherService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Console\Formatter\OutputFormatterInterface;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Console\Output\StreamOutput;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
 #[AsCommand(name: 'radio:start', description: 'Start the autonomous radio station')]
@@ -29,6 +34,9 @@ class RadioStartCommand extends Command
     private string  $playbackMethod     = 'upnp';
     private bool    $running            = true;
     private bool    $skipCurrent        = false;
+    private bool    $paused             = false;
+    private bool    $shouldRestart      = false;
+    private ?string $launchDevice       = null;
     private ?array  $currentTrack       = null;
     private bool    $useSonosForDjClips = false;
     private ?int    $lastSpotifyVolume  = null;
@@ -55,16 +63,17 @@ class RadioStartCommand extends Command
         private TextToSpeechService $tts,
         private TrackRepository $trackRepository,
         private DjAnnouncementRepository $djAnnouncementRepository,
+        private SongRequestRepository $songRequestRepository,
         private EntityManagerInterface $em,
         private RadioStateService $radioState,
         private WeatherService $weather,
         private NewsService $news,
         private ColleagueRepository $colleagueRepository,
+        private PlaylistRepository $playlistRepository,
         private string $projectDir,
         private string $spotifyDeviceName = 'PHPSD',
         private int $weatherHour = 12,
         private int $weatherMinute = 20,
-        private array $trackPools = [],
         private string $djClipIp = '',
     ) {
         parent::__construct();
@@ -90,6 +99,69 @@ class RadioStartCommand extends Command
         return '/var/www/srs-radio/var/radio.pid';
     }
 
+    public static function logFile(): string         { return '/var/www/srs-radio/var/radio.log'; }
+    public static function skipFlagFile(): string    { return '/var/www/srs-radio/var/radio-skip.flag'; }
+    public static function pauseFlagFile(): string   { return '/var/www/srs-radio/var/radio-pause.flag'; }
+    public static function stopFlagFile(): string    { return '/var/www/srs-radio/var/radio-stop.flag'; }
+    public static function restartFlagFile(): string { return '/var/www/srs-radio/var/radio-restart.flag'; }
+    public static function launchFile(): string      { return '/var/www/srs-radio/var/radio-launch.json'; }
+
+    private function checkSignals(): void
+    {
+        if (function_exists('pcntl_signal_dispatch')) {
+            pcntl_signal_dispatch();
+        }
+        if (file_exists(self::skipFlagFile())) {
+            @unlink(self::skipFlagFile());
+            $this->skipCurrent = true;
+        }
+        if (file_exists(self::restartFlagFile())) {
+            @unlink(self::restartFlagFile());
+            $this->shouldRestart = true;
+            $this->running       = false;
+            return;
+        }
+        if (file_exists(self::stopFlagFile())) {
+            @unlink(self::stopFlagFile());
+            $this->running = false;
+            return;
+        }
+        $shouldBePaused = file_exists(self::pauseFlagFile());
+        if ($shouldBePaused && !$this->paused) {
+            $this->paused = true;
+            $this->doPauseBackend();
+        } elseif (!$shouldBePaused && $this->paused) {
+            $this->paused = false;
+            $this->doResumeBackend();
+        }
+    }
+
+    private function doPauseBackend(): void
+    {
+        try {
+            if ($this->playbackMethod === 'spotify_connect') {
+                $this->spotify->pause();
+            } elseif ($this->sonosApi->getGroupId()) {
+                $this->sonosApi->pause();
+            } else {
+                $this->sonos->pause();
+            }
+        } catch (\Throwable) {}
+    }
+
+    private function doResumeBackend(): void
+    {
+        try {
+            if ($this->playbackMethod === 'spotify_connect') {
+                $this->spotify->resume();
+            } elseif ($this->sonosApi->getGroupId()) {
+                $this->sonosApi->resume();
+            } else {
+                $this->sonos->resume();
+            }
+        } catch (\Throwable) {}
+    }
+
     protected function configure(): void
     {
         $this
@@ -99,15 +171,12 @@ class RadioStartCommand extends Command
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        $io = new SymfonyStyle($input, $output);
-        $io->title('SRS FM — Autonomous Radio Station');
-
         // Refuse to start if another instance is already running.
         $pidFile = self::pidFile();
         if (file_exists($pidFile)) {
             $existingPid = (int) trim(file_get_contents($pidFile));
             if ($existingPid > 0 && posix_kill($existingPid, 0)) {
-                $io->error(sprintf(
+                (new SymfonyStyle($input, $output))->error(sprintf(
                     'Radio is already running (PID %d). Run "bin/console radio:stop" first.',
                     $existingPid,
                 ));
@@ -117,9 +186,17 @@ class RadioStartCommand extends Command
             @unlink($pidFile);
         }
 
+        // Tee all output to the log file so the admin page always reflects the current run,
+        // regardless of whether the radio was started from the terminal or the admin page.
+        $logFh     = fopen(self::logFile(), 'w');
+        $teeOutput = $this->createTeeOutput($output, $logFh);
+        $io        = new SymfonyStyle($input, $teeOutput);
+        $io->title('SRS FM — Autonomous Radio Station');
+
         $this->clearDjSounds();
 
         $deviceName = $input->getOption('device');
+        $this->launchDevice = $deviceName;
         if ($deviceName !== null) {
             $this->activeDeviceName = $deviceName;
             $io->writeln(sprintf('<info>Spotify Connect modus:</info> %s', $deviceName));
@@ -178,6 +255,7 @@ class RadioStartCommand extends Command
 
         $this->radioState->setPlaying();
         file_put_contents(self::pidFile(), getmypid());
+        file_put_contents(self::launchFile(), json_encode(['device' => $this->launchDevice]));
 
         if (function_exists('pcntl_signal')) {
             $stop = function () use ($io): void {
@@ -201,10 +279,23 @@ class RadioStartCommand extends Command
         $wasPreQueued  = false; // true when Sonos already started the next track via SetNextAVTransportURI
 
         while ($this->running) {
-            if (function_exists('pcntl_signal_dispatch')) {
-                pcntl_signal_dispatch();
+            $this->checkSignals();
+            $timeEventPlayed = $this->playTimeEventIfScheduled($io, $nextTrack);
+
+            // The time event clip already announced the next song — discard the separate intro.
+            if ($timeEventPlayed && $nextDjUrl !== null) {
+                $this->tts->delete($nextDjUrl);
+                $nextDjUrl  = null;
+                $nextDjText = null;
+                $nextDjType = 'between_tracks';
             }
-            $this->playTimeEventIfScheduled($io);
+
+            // DLNA/UPnP clips call SetAVTransportURI, which wipes the pre-queued next track.
+            // Reset wasPreQueued so the main loop explicitly starts the track rather than
+            // assuming Sonos auto-transitioned to it.
+            if ($timeEventPlayed && !$this->sonosApi->getGroupId()) {
+                $wasPreQueued = false;
+            }
 
             $track = $nextTrack;
 
@@ -243,9 +334,22 @@ class RadioStartCommand extends Command
                 $nextDjType = 'between_tracks';
             }
 
+            // If Sonos already auto-transitioned (wasPreQueued), the window to play the DJ intro
+            // has passed. Discard the stale clip now — keeping it would cause the next iteration
+            // to announce the already-playing track and then jump to a completely different song.
+            if ($wasPreQueued && $nextDjUrl !== null) {
+                $this->tts->delete($nextDjUrl);
+                $nextDjUrl  = null;
+                $nextDjText = null;
+                $nextDjType = 'between_tracks';
+            }
+
             if (!$this->running) {
                 break;
             }
+
+            // Play any pending listener notes (submitted via the user dashboard)
+            $this->playListenerNoteIfPending($io);
 
             // Play any birthday announcements queued by the 11:00 time event
             if (!empty($this->pendingBirthdays)) {
@@ -254,6 +358,21 @@ class RadioStartCommand extends Command
                     $this->playBirthdayAnnouncement($birthday, $io);
                 }
                 $this->pendingBirthdays = [];
+            }
+
+            // Play an approved song request before the next regular track
+            if ($this->playApprovedSongRequest($io)) {
+                // Discard any pre-generated DJ intro — it was written for a different song
+                if ($nextDjUrl !== null) {
+                    $this->tts->delete($nextDjUrl);
+                    $nextDjUrl  = null;
+                    $nextDjText = null;
+                    $nextDjType = 'between_tracks';
+                }
+                $nextTrack     = $this->pickTrack($io);
+                $nextNextTrack = $nextTrack ? $this->pickTrack($io, [$nextTrack['id']]) : null;
+                $wasPreQueued  = false;
+                continue;
             }
 
             $io->section(sprintf('Now playing: %s — %s', $track['title'], $track['artist']));
@@ -313,7 +432,13 @@ class RadioStartCommand extends Command
                 [$nextDjText, $nextDjUrl, $nextDjType] = $this->pregenerateDjAnnouncement($nextTrack, $io);
             } : null;
 
-            $this->waitForTrackToEnd($io, $nextDjUrl === null ? $nextTrack : null, $wasPreQueued, $djCallback);
+            // Only pre-queue on Sonos when no DJ is planned at all (neither already generated
+            // nor scheduled via callback). If a DJ callback is set, it fires at the 90s mark
+            // *inside* waitForTrackToEnd — after this condition is already evaluated — so
+            // passing nextTrack here would pre-queue the song AND generate a DJ for it, putting
+            // the loop in an impossible state where wasPreQueued=true and nextDjUrl is set.
+            $canPreQueue = $nextDjUrl === null && $djCallback === null;
+            $this->waitForTrackToEnd($io, $canPreQueue ? $nextTrack : null, $wasPreQueued, $djCallback);
 
             if ($this->skipCurrent) {
                 $wasPreQueued      = false; // always start next track explicitly after a skip
@@ -333,9 +458,46 @@ class RadioStartCommand extends Command
         $this->radioState->setStopped();
         $this->clearDjSounds();
         @unlink(self::pidFile());
-        $io->success('Radio stopped.');
+        @unlink(self::pauseFlagFile());
 
+        if ($this->shouldRestart) {
+            $io->writeln('<comment>Restarting radio...</comment>');
+            $device = $this->launchDevice ? ' --device=' . escapeshellarg($this->launchDevice) : '';
+            $cmd    = sprintf(
+                'nohup php %s/bin/console radio:start%s > /dev/null 2>&1 &',
+                escapeshellarg($this->projectDir),
+                $device,
+            );
+            shell_exec($cmd);
+        }
+
+        $io->success($this->shouldRestart ? 'Radio restarting...' : 'Radio stopped.');
+
+        fclose($logFh);
         return Command::SUCCESS;
+    }
+
+    private function createTeeOutput(OutputInterface $output, mixed $fileHandle): StreamOutput
+    {
+        $innerStream = ($output instanceof StreamOutput) ? $output->getStream() : STDOUT;
+
+        return new class($innerStream, $fileHandle, $output->getVerbosity(), null, $output->getFormatter()) extends StreamOutput {
+            public function __construct(
+                mixed $stream,
+                private readonly mixed $fileHandle,
+                int $verbosity,
+                ?bool $decorated,
+                OutputFormatterInterface $formatter,
+            ) {
+                parent::__construct($stream, $verbosity, $decorated, $formatter);
+            }
+
+            protected function doWrite(string $message, bool $newline): void
+            {
+                parent::doWrite($message, $newline);
+                fwrite($this->fileHandle, preg_replace('/\x1b\[[0-9;]*m/', '', $message) . ($newline ? PHP_EOL : ''));
+            }
+        };
     }
 
     private function playTrack(array $track, SymfonyStyle $io): void
@@ -393,8 +555,8 @@ class RadioStartCommand extends Command
         $recentIds = $this->trackRepository->findSpotifyIdsPlayedSince($since);
         $exclude   = array_merge($recentIds, $excludeIds);
 
-        // Shuffle pools so every era gets equal rotation over time
-        $pools = $this->trackPools;
+        // Load active playlists from DB each time so changes take effect without restart
+        $pools = $this->playlistRepository->findActivePools();
         shuffle($pools);
 
         // First pass: pick from a pool that still has non-recent tracks
@@ -420,6 +582,7 @@ class RadioStartCommand extends Command
 
         // All pools exhausted of non-recent tracks — reset the 7-day filter, keep only immediate excludes
         $io->note('Alle pools recent gespeeld — 7-dagenfilter resetten.');
+        $pools = $this->playlistRepository->findActivePools();
         foreach ($pools as $pool) {
             try {
                 $playlistId = $this->resolvePoolId($pool);
@@ -552,7 +715,7 @@ class RadioStartCommand extends Command
         }
     }
 
-    private function playTimeEventIfScheduled(SymfonyStyle $io): void
+    private function playTimeEventIfScheduled(SymfonyStyle $io, ?array $nextTrack = null): bool
     {
         $tz     = new \DateTimeZone('Europe/Amsterdam');
         $now    = new \DateTimeImmutable('now', $tz);
@@ -584,14 +747,14 @@ class RadioStartCommand extends Command
         }
 
         if ($type === null) {
-            return;
+            return false;
         }
 
         $this->playedTimeEvents[$typeKey] = $today;
 
         if ($type === 'birthday') {
             $this->queueBirthdayAnnouncements($io);
-            return;
+            return false;
         }
 
         try {
@@ -600,8 +763,8 @@ class RadioStartCommand extends Command
 
             $djText = $this->djService->generate(new DjContext(
                 station: 'SRS FM',
-                track: '',
-                artist: '',
+                track: $nextTrack['title'] ?? '',
+                artist: $nextTrack['artist'] ?? '',
                 mood: 'energetic',
                 hour: $hour,
                 type: $type,
@@ -627,7 +790,10 @@ class RadioStartCommand extends Command
             $this->em->flush();
         } catch (\Throwable $e) {
             $io->warning(sprintf('Time event [%s] mislukt: %s', $type, $e->getMessage()));
+            return false;
         }
+
+        return true;
     }
 
     /** Called at 11:00 — searches Spotify and stores birthdays to play at the next song boundary. */
@@ -702,18 +868,13 @@ class RadioStartCommand extends Command
 
     private function playBirthdaySong(string $uri, string $name, ?string $picture, SymfonyStyle $io): void
     {
-        // At the song boundary the Sonos player is idle, so loadStreamUrl plays immediately.
-        // For UPnP-only setups, stop first so Spotify can take over.
-        if ($this->playbackMethod === 'upnp') {
-            try { $this->sonos->stop(); } catch (\Throwable) {}
-            sleep(1);
-        }
-
-        if ($this->sonosApi->getGroupId()) {
-            $this->sonosApi->playSpotifyTrack($uri, 'Happy Birthday ' . $name, 'SRS FM');
-        } else {
-            $this->spotify->playTrack($uri);
-        }
+        $track = [
+            'id'    => str_replace('spotify:track:', '', $uri),
+            'uri'   => $uri,
+            'title' => 'Happy Birthday ' . $name,
+            'artist' => 'SRS FM',
+        ];
+        $this->playTrack($track, $io);
 
         $this->radioState->setTrack('Happy Birthday', $name, 0);
         $this->radioState->setBirthday($name, $picture);
@@ -722,7 +883,7 @@ class RadioStartCommand extends Command
         // Wait for the song to finish
         sleep(5);
         while ($this->running) {
-            if (function_exists('pcntl_signal_dispatch')) pcntl_signal_dispatch();
+            $this->checkSignals();
             try {
                 if ($this->sonosApi->getGroupId()) {
                     $playback  = $this->sonosApi->getPlayback();
@@ -746,6 +907,145 @@ class RadioStartCommand extends Command
         $this->skipCurrent = true;
     }
 
+    private function playApprovedSongRequest(SymfonyStyle $io): bool
+    {
+        $this->em->clear();
+        $request = $this->songRequestRepository->findNextApproved();
+        if ($request === null) {
+            return false;
+        }
+
+        $io->writeln(sprintf('<comment>[request] %s requested: %s — %s</comment>',
+            $request->getRequestedBy(), $request->getTitle(), $request->getArtist()));
+
+        try {
+            $djText = $this->djService->generate(new DjContext(
+                station:       'SRS FM',
+                track:         $request->getTitle(),
+                artist:        $request->getArtist(),
+                mood:          'energetic',
+                hour:          (int) date('H'),
+                type:          'song_request',
+                requesterName: $request->getRequestedBy(),
+                recentTexts:   $this->djAnnouncementRepository->findRecentTexts('song_request', 5),
+            ));
+            $io->writeln('<info>DJ:</info> ' . $djText);
+
+            $audioUrl = $this->tts->generate($djText);
+            if (!$this->useSonosForDjClips) {
+                $this->playDjClipViaBrowser($audioUrl, $io);
+            } else {
+                $djDurationMs = (int) ($this->tts->getDuration($audioUrl) * 1000);
+                $this->radioState->setTrack('DJ Sander', 'SRS FM', $djDurationMs);
+                $this->playDjClipViaSonos($audioUrl, $io);
+                $this->skipCurrent = false;
+            }
+            $this->tts->delete($audioUrl);
+
+            $this->em->persist(new DjAnnouncement($djText, $audioUrl, 'song_request'));
+        } catch (\Throwable $e) {
+            $io->warning('Song request DJ intro failed: ' . $e->getMessage());
+        }
+
+        // Play the actual requested track
+        $track = [
+            'id'          => $request->getSpotifyId(),
+            'uri'         => $request->getSpotifyUri(),
+            'title'       => $request->getTitle(),
+            'artist'      => $request->getArtist(),
+            'duration_ms' => 0,
+            'image'       => $request->getImageUrl(),
+        ];
+
+        try {
+            $this->playTrack($track, $io);
+        } catch (\Throwable $e) {
+            $io->error('Song request playback failed: ' . $e->getMessage());
+            $request->reject();
+            $this->em->flush();
+            return false;
+        }
+
+        $this->radioState->setTrack($track['title'], $track['artist'], 0, $track['image']);
+        $request->markPlayed();
+        $this->em->flush();
+
+        $io->writeln(sprintf('<comment>[request] Playing %s for %s...</comment>',
+            $request->getTitle(), $request->getRequestedBy()));
+
+        sleep(5);
+        while ($this->running) {
+            $this->checkSignals();
+            if ($this->skipCurrent) {
+                break;
+            }
+            try {
+                if ($this->playbackMethod === 'spotify_connect') {
+                    $playback  = $this->spotify->getCurrentPlayback();
+                    if (empty($playback) || !$playback['is_playing']) break;
+                    $remaining = ($playback['duration_ms'] - $playback['progress_ms']) / 1000;
+                } elseif ($this->sonosApi->getGroupId()) {
+                    $playback  = $this->sonosApi->getPlayback();
+                    if (empty($playback) || !$playback['is_playing']) break;
+                    $remaining = ($playback['duration_ms'] - $playback['progress_ms']) / 1000;
+                } else {
+                    if (!$this->sonos->isPlaying()) break;
+                    $pos       = $this->sonos->getPositionInfo();
+                    if ($pos['duration'] === 0) { sleep(2); continue; }
+                    $remaining = max(0, $pos['duration'] - $pos['position']);
+                }
+                if ($remaining <= 3) break;
+                sleep(min(10, max(1, (int) $remaining - 3)));
+            } catch (\Throwable) {
+                break;
+            }
+        }
+
+        $this->skipCurrent = false;
+        return true;
+    }
+
+    private function playListenerNoteIfPending(SymfonyStyle $io): void
+    {
+        $note = $this->radioState->popListenerNote();
+        if ($note === null) {
+            return;
+        }
+
+        $io->writeln(sprintf('<comment>[listener note] From %s: %s</comment>', $note['sender'], $note['text']));
+
+        try {
+            $djText = $this->djService->generate(new DjContext(
+                station:      'SRS FM',
+                track:        '',
+                artist:       '',
+                mood:         'friendly',
+                hour:         (int) date('H'),
+                type:         'listener_note',
+                listenerNote: $note['text'],
+                listenerName: $note['sender'],
+                recentTexts:  $this->djAnnouncementRepository->findRecentTexts('listener_note', 5),
+            ));
+            $io->writeln('<info>DJ:</info> ' . $djText);
+
+            $audioUrl = $this->tts->generate($djText);
+            if (!$this->useSonosForDjClips) {
+                $this->playDjClipViaBrowser($audioUrl, $io);
+            } else {
+                $djDurationMs = (int) ($this->tts->getDuration($audioUrl) * 1000);
+                $this->radioState->setTrack('DJ Sander', 'SRS FM', $djDurationMs);
+                $this->playDjClipViaSonos($audioUrl, $io);
+                $this->skipCurrent = false;
+            }
+            $this->tts->delete($audioUrl);
+
+            $this->em->persist(new DjAnnouncement($djText, $audioUrl, 'listener_note'));
+            $this->em->flush();
+        } catch (\Throwable $e) {
+            $io->warning('Listener note playback failed: ' . $e->getMessage());
+        }
+    }
+
     private function playDjClipViaSonos(string $url, SymfonyStyle $io): void
     {
         if ($this->sonosApi->getGroupId()) {
@@ -761,23 +1061,25 @@ class RadioStartCommand extends Command
             $io->writeln(sprintf('<comment>Waiting %.1fs for clip to finish</comment>', $duration));
             $end = microtime(true) + $duration + 1.0;
             while (microtime(true) < $end && $this->running && !$this->skipCurrent) {
-                if (function_exists('pcntl_signal_dispatch')) pcntl_signal_dispatch();
+                $this->checkSignals();
                 usleep(300_000);
             }
             return;
         }
 
-        $io->writeln(sprintf('<comment>DJ clip via DLNA/UPnP: %s</comment>', $url));
+        // DLNA/UPnP path — device takes 0.5–2 s to transition STOPPED→PLAYING after Play is sent.
+        // Polling isPlaying() immediately returns false (race condition) and the loop exits before
+        // the clip starts, so playTrack() runs while the clip hasn't played yet.
+        // Use the known clip duration instead — the same approach as the Sonos API path above.
+        $duration = $this->tts->getDuration($url);
+        $io->writeln(sprintf('<comment>DJ clip via DLNA/UPnP: %s (%.1fs)</comment>', $url, $duration));
 
-        // Non-Sonos device (Samsung soundbar via DLNA/UPnP): take over AVTransport.
         $origVol = $this->boostVolume();
         try {
             $this->sonos->playHttpClip($url);
-            for ($ms = 0; $ms < 120_000 && $this->running && !$this->skipCurrent; $ms += 300) {
-                if (function_exists('pcntl_signal_dispatch')) pcntl_signal_dispatch();
-                if (!$this->sonos->isPlaying()) {
-                    break;
-                }
+            $end = microtime(true) + $duration + 1.5;
+            while (microtime(true) < $end && $this->running && !$this->skipCurrent) {
+                $this->checkSignals();
                 usleep(300_000);
             }
             if ($this->skipCurrent) {
@@ -843,12 +1145,9 @@ class RadioStartCommand extends Command
         $alarm = json_decode(file_get_contents($alarmFile), true) ?? [];
         @unlink($alarmFile);
 
-        $alarmUrl = $alarm['url'] ?? '';
-        if (!$alarmUrl) {
-            return;
-        }
-
         $io->warning(sprintf('[ALARM] %s — %s', $alarm['key'] ?? '?', $alarm['summary'] ?? '?'));
+
+        $this->radioState->setAlarm($alarm['key'] ?? '?', $alarm['summary'] ?? '');
 
         $resumePosition = 0;
 
@@ -869,46 +1168,51 @@ class RadioStartCommand extends Command
             try { $this->spotify->pause(); } catch (\Throwable) {}
         }
 
-        // Play siren at boosted volume
-        $debugMsg = sprintf('[ALARM] useSonos=%s groupId=%s url=%s', $this->useSonosForDjClips ? 'yes' : 'no', $this->sonosApi->getGroupId() ?? 'null', $alarmUrl);
-        $io->writeln('<comment>' . $debugMsg . '</comment>');
-        file_put_contents($this->projectDir . '/var/alarm-debug.log', date('H:i:s') . ' ' . $debugMsg . "\n", FILE_APPEND);
-        $origVol = $this->boostVolume(15);
         try {
-            if (!$this->useSonosForDjClips) {
-                $alarmPath = $this->projectDir . '/public' . parse_url($alarmUrl, PHP_URL_PATH);
-                $duration  = $this->tts->getFileDuration($alarmPath);
-                $this->radioState->setDjClip($alarmUrl);
-                $end = microtime(true) + $duration + 1.5;
-                while (microtime(true) < $end && $this->running) {
-                    if (function_exists('pcntl_signal_dispatch')) pcntl_signal_dispatch();
-                    sleep(1);
+            // DJ emergency broadcast with siren as background bed
+            $io->writeln('<comment>[ALARM] Generating DJ emergency broadcast...</comment>');
+            try {
+                $djText = $this->djService->generate(new DjContext(
+                    station: 'SRS FM',
+                    track:   '',
+                    artist:  '',
+                    mood:    'urgent',
+                    hour:    (int) date('H'),
+                    type:    'alarm',
+                    alarmKey:     $alarm['key']     ?? '',
+                    alarmSummary: $alarm['summary'] ?? '',
+                ));
+                $io->writeln('<info>[ALARM] DJ:</info> ' . $djText);
+
+                $sirenPath = $this->projectDir . '/public/sounds/air_raid_siren.mp3';
+                $audioUrl  = $this->tts->generateWithBed($djText, $sirenPath, 0.35);
+                $duration  = $this->tts->getDuration($audioUrl);
+                $io->writeln(sprintf('<comment>[ALARM] DJ clip: %s (%.1fs)</comment>', $audioUrl, $duration));
+
+                if ($this->sonosApi->getGroupId()) {
+                    $groupVol = $this->sonosApi->getGroupVolume() ?? 40;
+                    $clipVol  = min(100, $groupVol + 5);
+                    $io->writeln(sprintf('<comment>[ALARM] Playing via Sonos API (vol %d)</comment>', $clipVol));
+                    $this->sonosApi->playAudioClip($audioUrl, $clipVol);
+                    $end = microtime(true) + $duration + 1.0;
+                    while (microtime(true) < $end && $this->running) {
+                        $this->checkSignals();
+                        usleep(300_000);
+                    }
+                } else {
+                    $io->writeln('<comment>[ALARM] Playing via UPnP</comment>');
+                    $this->sonos->playHttpClip($audioUrl);
+                    $this->sonos->waitForClipToEnd((int) ($duration + 5));
                 }
-                $this->radioState->clearDjClip();
-            } elseif ($this->sonosApi->getGroupId()) {
-                $alarmPath       = $this->projectDir . '/public' . parse_url($alarmUrl, PHP_URL_PATH);
-                $reachableAlarm  = rtrim($this->tts->getServerBaseUrl(), '/') . parse_url($alarmUrl, PHP_URL_PATH);
-                $groupVol = $this->sonosApi->getGroupVolume() ?? 40;
-                $clipVol  = min(100, $groupVol + 15);
-                $io->writeln(sprintf('<comment>[ALARM] Sonos API clip: %s (vol %d)</comment>', $reachableAlarm, $clipVol));
-                $ok = $this->sonosApi->playAudioClip($reachableAlarm, $clipVol);
-                $result = $ok ? 'audioClip OK' : 'audioClip FAILED';
-                $io->writeln($ok ? "<comment>[ALARM] $result</comment>" : "<error>[ALARM] $result</error>");
-                file_put_contents($this->projectDir . '/var/alarm-debug.log', date('H:i:s') . ' ' . $result . "\n", FILE_APPEND);
-                $duration  = $this->tts->getFileDuration($alarmPath);
-                $end = microtime(true) + $duration + 1.5;
-                while (microtime(true) < $end && $this->running) {
-                    if (function_exists('pcntl_signal_dispatch')) pcntl_signal_dispatch();
-                    usleep(300_000);
-                }
-            } else {
-                $this->sonos->playHttpClip($alarmUrl);
-                $this->sonos->waitForClipToEnd(120);
+                $this->tts->delete($audioUrl);
+                $io->writeln('<comment>[ALARM] DJ broadcast done.</comment>');
+            } catch (\Throwable $e) {
+                $io->warning('[ALARM] DJ broadcast failed: ' . $e->getMessage());
             }
         } catch (\Throwable $e) {
             $io->warning('Alarm playback failed: ' . $e->getMessage());
         } finally {
-            $this->restoreVolume($origVol);
+            $this->radioState->clearAlarm();
         }
 
         // Resume track from saved position
@@ -982,7 +1286,7 @@ class RadioStartCommand extends Command
         // The browser plays it independently; we don't rely on a browser signal.
         $end = microtime(true) + $duration + 1.5;
         while (microtime(true) < $end && $this->running && !$this->skipCurrent) {
-            if (function_exists('pcntl_signal_dispatch')) pcntl_signal_dispatch();
+            $this->checkSignals();
             sleep(1);
         }
 
@@ -997,9 +1301,7 @@ class RadioStartCommand extends Command
         $djCallbackFired = false;
 
         while ($this->running && !$this->skipCurrent) {
-            if (function_exists('pcntl_signal_dispatch')) {
-                pcntl_signal_dispatch();
-            }
+            $this->checkSignals();
 
             if ($this->skipCurrent) {
                 break;
@@ -1014,7 +1316,7 @@ class RadioStartCommand extends Command
             try {
                 if ($this->playbackMethod === 'spotify_connect') {
                     $playback = $this->spotify->getCurrentPlayback();
-                    if (empty($playback) || !$playback['is_playing']) {
+                    if (empty($playback) || (!$playback['is_playing'] && !$this->paused)) {
                         break;
                     }
                     if (isset($playback['volume_percent'])) {
@@ -1023,12 +1325,12 @@ class RadioStartCommand extends Command
                     $remaining = ($playback['duration_ms'] - $playback['progress_ms']) / 1000;
                 } elseif ($this->sonosApi->getGroupId()) {
                     $playback = $this->sonosApi->getPlayback();
-                    if (empty($playback) || !$playback['is_playing']) {
+                    if (empty($playback) || (!$playback['is_playing'] && !$this->paused)) {
                         break;
                     }
                     $remaining = ($playback['duration_ms'] - $playback['progress_ms']) / 1000;
                 } else {
-                    if (!$this->sonos->isPlaying()) {
+                    if (!$this->sonos->isPlaying() && !$this->paused) {
                         break;
                     }
                     $pos = $this->sonos->getPositionInfo();
@@ -1056,7 +1358,7 @@ class RadioStartCommand extends Command
                     ($djCallback)();
                 }
 
-                if ($remaining <= 3) {
+                if ($remaining <= 3 && !$this->paused) {
                     // When pre-queued: break immediately so Sonos auto-transitions while we do
                     // bookkeeping. Without pre-queue: sleep through the last 3 seconds normally.
                     if (!$preQueued) {

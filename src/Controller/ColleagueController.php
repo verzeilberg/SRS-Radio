@@ -20,7 +20,7 @@ class ColleagueController extends AbstractController
         private string $projectDir,
     ) {}
 
-    #[Route('', methods: ['GET'])]
+    #[Route('', name: 'colleagues', methods: ['GET'])]
     public function index(): Response
     {
         return $this->render('colleague/index.html.twig', [
@@ -36,14 +36,14 @@ class ColleagueController extends AbstractController
 
         if ($name === '' || $birthdate === '') {
             $this->addFlash('error', 'Name and birthdate are required.');
-            return $this->redirectToRoute('app_colleague_index');
+            return $this->redirectToRoute('colleagues');
         }
 
         try {
             $date = new \DateTimeImmutable($birthdate);
         } catch (\Exception) {
             $this->addFlash('error', 'Invalid birthdate format.');
-            return $this->redirectToRoute('app_colleague_index');
+            return $this->redirectToRoute('colleagues');
         }
 
         $pictureFilename = null;
@@ -58,20 +58,29 @@ class ColleagueController extends AbstractController
             } catch (FileException) {
                 $this->addFlash('error', 'Failed to upload picture.');
             }
+        } else {
+            $existing = basename(trim((string) $request->request->get('existing_picture', '')));
+            $path     = $this->projectDir . '/public/images/colleagues/' . $existing;
+            if ($existing !== '' && file_exists($path)) {
+                $pictureFilename = $existing;
+            }
         }
 
         $this->em->persist(new Colleague($name, $date, $pictureFilename));
         $this->em->flush();
 
         $this->addFlash('success', "{$name} added.");
-        return $this->redirectToRoute('app_colleague_index');
+        $returnTo = $request->request->get('_return_to');
+        return $this->redirectToRoute($returnTo === 'admin' ? 'app_admin_dashboard' : 'colleagues');
     }
 
     #[Route('/{id}', methods: ['POST'], requirements: ['id' => '\d+'])]
     public function delete(int $id, Request $request): Response
     {
+        $returnTo = $request->request->get('_return_to');
+
         if ($request->request->get('_method') !== 'DELETE') {
-            return $this->redirectToRoute('app_colleague_index');
+            return $this->redirectToRoute($returnTo === 'admin' ? 'app_admin_dashboard' : 'colleagues');
         }
 
         $colleague = $this->repository->find($id);
@@ -84,6 +93,6 @@ class ColleagueController extends AbstractController
             $this->addFlash('success', $colleague->getName() . ' removed.');
         }
 
-        return $this->redirectToRoute('app_colleague_index');
+        return $this->redirectToRoute($returnTo === 'admin' ? 'app_admin_dashboard' : 'colleagues');
     }
 }

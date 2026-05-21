@@ -154,6 +154,22 @@ class SonosApiService
         return $response->getStatusCode() < 300;
     }
 
+    public function resume(): bool
+    {
+        $token = $this->getValidToken();
+        if (!$token || !$this->groupId) {
+            return false;
+        }
+
+        $response = $this->httpClient->request(
+            'POST',
+            self::API . '/groups/' . $this->groupId . '/playback/play',
+            ['headers' => ['Authorization' => 'Bearer ' . $token->getAccessToken()]]
+        );
+
+        return $response->getStatusCode() < 300;
+    }
+
     /**
      * Play a Spotify track on the group.
      * Uses loadStreamUrl which accepts Spotify URIs when Spotify is linked to the Sonos account.

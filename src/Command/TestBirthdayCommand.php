@@ -82,22 +82,28 @@ class TestBirthdayCommand extends Command
 
         $noAudio = $input->getOption('no-audio');
 
-        // ── Discover Sonos group (same as radio:start --device) ───────────
-        $hasSonos = false;
+        // ── Discover Sonos — API first, UPnP fallback (mirrors radio:start) ─
+        $hasSonosApi = false;
+        $hasUpnp     = false;
         if (!$noAudio) {
             try {
-                $groupId  = $this->sonosApi->discoverGroup($this->spotifyDeviceName);
-                $hasSonos = (bool) $groupId;
-                $io->writeln($hasSonos
-                    ? sprintf('<info>Sonos group found for "%s"</info>', $this->spotifyDeviceName)
-                    : sprintf('<error>Sonos group not found for "%s" — cannot play.</error>', $this->spotifyDeviceName)
-                );
-                if (!$hasSonos) {
+                $sonosRoomName = $this->sonos->getRoomName() ?: $this->spotifyDeviceName;
+                $groupId = $this->sonosApi->discoverGroup($sonosRoomName);
+                $hasSonosApi = (bool) $groupId;
+                if ($hasSonosApi) {
+                    $io->writeln(sprintf('<info>Sonos API: %s</info>', $sonosRoomName));
+                }
+            } catch (\Throwable) {}
+
+            if (!$hasSonosApi) {
+                try {
+                    $this->sonos->isPlaying(); // probes SONOS_IP:1400
+                    $hasUpnp = true;
+                    $io->writeln('<info>Sonos UPnP (fallback)</info>');
+                } catch (\Throwable $e) {
+                    $io->error('Sonos niet bereikbaar: ' . $e->getMessage());
                     return Command::FAILURE;
                 }
-            } catch (\Throwable $e) {
-                $io->error('Sonos discovery failed: ' . $e->getMessage());
-                return Command::FAILURE;
             }
         }
 
@@ -120,30 +126,29 @@ class TestBirthdayCommand extends Command
             $io->warning('DJ text generation failed: ' . $e->getMessage());
         }
 
-        // ── Pause via Sonos API so the player is idle (mirrors song-boundary behaviour) ──
-        if (!$noAudio) {
-            try {
-                $this->sonosApi->pause();
-                sleep(1);
-            } catch (\Throwable) {}
-        }
-
         // ── Play TTS announcement ──────────────────────────────────────────
-        if (!$noAudio && $djText && $hasSonos) {
+        if (!$noAudio && $djText) {
             $io->section('Playing TTS announcement');
             try {
                 $audioUrl = $this->tts->generate($djText);
                 $duration = $this->tts->getDuration($audioUrl);
                 $io->writeln(sprintf('<comment>Clip: %s (%.1fs)</comment>', $audioUrl, $duration));
 
-                $groupVol = $this->sonosApi->getGroupVolume() ?? 40;
-                $clipVol  = min(100, $groupVol + 10);
-                $this->sonosApi->playAudioClip($audioUrl, $clipVol);
+                if ($hasSonosApi) {
+                    // Overlay clip — does not interrupt current playback
+                    $groupVol = $this->sonosApi->getGroupVolume() ?? 40;
+                    $clipVol  = min(100, $groupVol + 10);
+                    $this->sonosApi->playAudioClip($audioUrl, $clipVol);
 
-                $end = microtime(true) + $duration + 1.0;
-                while ($this->running && microtime(true) < $end) {
-                    if (function_exists('pcntl_signal_dispatch')) pcntl_signal_dispatch();
-                    usleep(300_000);
+                    $end = microtime(true) + $duration + 1.0;
+                    while ($this->running && microtime(true) < $end) {
+                        if (function_exists('pcntl_signal_dispatch')) pcntl_signal_dispatch();
+                        usleep(300_000);
+                    }
+                } else {
+                    // UPnP: takes over AVTransport
+                    $this->sonos->playHttpClip($audioUrl);
+                    $this->sonos->waitForClipToEnd((int) ($duration + 10));
                 }
                 $this->tts->delete($audioUrl);
             } catch (\Throwable $e) {
@@ -153,9 +158,9 @@ class TestBirthdayCommand extends Command
 
         // ── Search Spotify for birthday song ───────────────────────────────
         $io->section('Searching Spotify for personalised birthday song');
-        $fallbackUri  = 'spotify:track:7AwQUXHJnDnEeeow7dfLGi';
-        $birthdayUri  = $fallbackUri;
-        $searchTitle  = $name . ', Dit is je verjaardag';
+        $fallbackUri = 'spotify:track:7AwQUXHJnDnEeeow7dfLGi';
+        $birthdayUri = $fallbackUri;
+        $searchTitle = $name . ', Dit is je verjaardag';
         $io->writeln('Query: ' . $searchTitle);
         try {
             $found = $this->spotify->searchTrackByTitle($searchTitle);
@@ -185,25 +190,47 @@ class TestBirthdayCommand extends Command
             return Command::SUCCESS;
         }
 
-        // ── Play birthday song via Sonos API (player is idle after pause) ─
+        // ── Play birthday song ─────────────────────────────────────────────
         $io->section('Playing birthday song');
+        $trackId = str_replace('spotify:track:', '', $birthdayUri);
         try {
-            $io->writeln(sprintf('<comment>Via Sonos API (%s): %s</comment>', $this->spotifyDeviceName, $birthdayUri));
-            $this->sonosApi->playSpotifyTrack($birthdayUri, 'Happy Birthday ' . $name, 'SRS FM');
+            if ($hasSonosApi) {
+                $io->writeln(sprintf('<comment>Via Sonos API: %s</comment>', $birthdayUri));
+                $this->sonosApi->playSpotifyTrack($birthdayUri, 'Happy Birthday ' . $name, 'SRS FM');
 
-            // Wait for song to end
-            sleep(5);
-            while ($this->running) {
-                if (function_exists('pcntl_signal_dispatch')) pcntl_signal_dispatch();
-                try {
-                    $playback  = $this->sonosApi->getPlayback();
-                    if (empty($playback) || !$playback['is_playing']) break;
-                    $remaining = ($playback['duration_ms'] - $playback['progress_ms']) / 1000;
-                    $io->writeln(sprintf('<comment>%.0fs remaining...</comment>', $remaining));
-                    if ($remaining <= 3) break;
-                    sleep(min(10, max(1, (int) $remaining - 3)));
-                } catch (\Throwable) {
-                    break;
+                sleep(5);
+                while ($this->running) {
+                    if (function_exists('pcntl_signal_dispatch')) pcntl_signal_dispatch();
+                    try {
+                        $playback  = $this->sonosApi->getPlayback();
+                        if (empty($playback) || !$playback['is_playing']) break;
+                        $remaining = ($playback['duration_ms'] - $playback['progress_ms']) / 1000;
+                        $io->writeln(sprintf('<comment>%.0fs remaining...</comment>', $remaining));
+                        if ($remaining <= 3) break;
+                        sleep(min(10, max(1, (int) $remaining - 3)));
+                    } catch (\Throwable) {
+                        break;
+                    }
+                }
+            } else {
+                // UPnP: play Spotify track directly on Sonos
+                $io->writeln(sprintf('<comment>Via Sonos UPnP: %s</comment>', $birthdayUri));
+                $this->sonos->play($trackId, 'Happy Birthday ' . $name, 'SRS FM');
+
+                sleep(5);
+                while ($this->running) {
+                    if (function_exists('pcntl_signal_dispatch')) pcntl_signal_dispatch();
+                    try {
+                        if (!$this->sonos->isPlaying()) break;
+                        $pos = $this->sonos->getPositionInfo();
+                        if ($pos['duration'] === 0) { sleep(2); continue; }
+                        $remaining = max(0, $pos['duration'] - $pos['position']);
+                        $io->writeln(sprintf('<comment>%.0fs remaining...</comment>', $remaining));
+                        if ($remaining <= 3) break;
+                        sleep(min(10, max(1, (int) $remaining - 3)));
+                    } catch (\Throwable) {
+                        break;
+                    }
                 }
             }
         } catch (\Throwable $e) {

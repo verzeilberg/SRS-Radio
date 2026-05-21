@@ -1,0 +1,885 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SRS Radio – Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Raleway:wght@300;400;700;900&family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        html, body {
+            min-height: 100%;
+            font-family: 'Lato', sans-serif;
+            background: #0a1929;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+        }
+
+        header {
+            background: #112240;
+            border-bottom: 1px solid #1e3a5f;
+            padding: 1rem 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-shrink: 0;
+        }
+
+        .brand {
+            font-family: 'Raleway', sans-serif;
+            font-weight: 700;
+            font-size: 1.1rem;
+            letter-spacing: .1em;
+            color: #64b5f6;
+            display: flex;
+            align-items: center;
+            gap: .6rem;
+        }
+
+        nav a {
+            color: #4a6a8a;
+            text-decoration: none;
+            font-size: .85rem;
+            margin-left: 1.5rem;
+            transition: color .2s;
+        }
+        nav a:hover { color: #64b5f6; }
+        nav a.danger { color: #6b3a4a; }
+        nav a.danger:hover { color: #f87171; }
+
+        main {
+            flex: 1;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* ── Tabs ── */
+        .tabs {
+            display: flex;
+            gap: .5rem;
+            margin-bottom: 1.5rem;
+            border-bottom: 1px solid #1e3a5f;
+            width: 100%;
+            max-width: 560px;
+        }
+
+        .tab-btn {
+            background: none;
+            border: none;
+            color: #4a6a8a;
+            font-family: 'Lato', sans-serif;
+            font-size: .85rem;
+            font-weight: 700;
+            letter-spacing: .07em;
+            text-transform: uppercase;
+            padding: .6rem 1rem;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -1px;
+            transition: color .2s, border-color .2s;
+        }
+        .tab-btn:hover { color: #64b5f6; }
+        .tab-btn.active {
+            color: #64b5f6;
+            border-bottom-color: #64b5f6;
+        }
+
+        .tab-panel { display: none; width: 100%; max-width: 560px; }
+        .tab-panel.active { display: block; }
+
+        /* ── Card ── */
+        .card {
+            background: #112240;
+            border: 1px solid #1e3a5f;
+            border-radius: 10px;
+            padding: 1.5rem;
+        }
+
+        .card-title {
+            font-family: 'Raleway', sans-serif;
+            font-size: .65rem;
+            font-weight: 700;
+            letter-spacing: .12em;
+            text-transform: uppercase;
+            color: #4a6a8a;
+            margin-bottom: 1rem;
+        }
+
+        /* ── Now playing row ── */
+        .now-playing {
+            display: flex;
+            align-items: center;
+            gap: .85rem;
+            background: #0a0a1a;
+            border: 1px solid #2a2a4a;
+            border-radius: 8px;
+            padding: .75rem;
+            min-height: 64px;
+        }
+
+        .np-art {
+            width: 48px;
+            height: 48px;
+            border-radius: 5px;
+            object-fit: cover;
+            flex-shrink: 0;
+        }
+
+        .np-text { flex: 1; min-width: 0; }
+
+        .np-track {
+            font-weight: 700;
+            font-size: .9rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            color: #fff;
+        }
+
+        .np-artist {
+            font-size: .78rem;
+            color: #6b5a8a;
+            margin-top: .15rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .np-status {
+            font-size: .65rem;
+            font-weight: 700;
+            letter-spacing: .08em;
+            text-transform: uppercase;
+            color: #3a2a5a;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        .np-status.playing { color: #86efac; }
+
+        /* ── Next up row ── */
+        .next-up {
+            margin-top: 1rem;
+        }
+
+        .next-up-label {
+            font-size: .65rem;
+            font-weight: 700;
+            letter-spacing: .1em;
+            text-transform: uppercase;
+            color: #4a6a8a;
+            margin-bottom: .5rem;
+        }
+
+        .next-up-row {
+            display: flex;
+            align-items: center;
+            gap: .6rem;
+            background: #0a0a1a;
+            border: 1px solid #1e1e35;
+            border-radius: 8px;
+            padding: .65rem .75rem;
+            min-height: 48px;
+        }
+
+        .next-icon {
+            font-size: .9rem;
+            flex-shrink: 0;
+            color: #4a3a6a;
+        }
+
+        .next-text { flex: 1; min-width: 0; }
+
+        .next-track {
+            font-size: .85rem;
+            font-weight: 700;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            color: #c0c0e0;
+        }
+
+        .next-artist {
+            font-size: .75rem;
+            color: #4a3a6a;
+            margin-top: .1rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* ── Note form ── */
+        .note-form { display: flex; flex-direction: column; gap: .75rem; }
+
+        .note-form label {
+            font-size: .7rem;
+            font-weight: 700;
+            letter-spacing: .1em;
+            text-transform: uppercase;
+            color: #4a6a8a;
+        }
+
+        .note-form textarea {
+            background: #0a0a1a;
+            border: 1px solid #2a2a4a;
+            border-radius: 8px;
+            color: #fff;
+            font-family: 'Lato', sans-serif;
+            font-size: .9rem;
+            padding: .75rem;
+            resize: vertical;
+            min-height: 90px;
+            outline: none;
+            transition: border-color .2s;
+        }
+        .note-form textarea:focus { border-color: #5b21b6; }
+        .note-form textarea::placeholder { color: #3a2a5a; }
+
+        .note-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: .5rem;
+        }
+
+        .note-count {
+            font-size: .72rem;
+            color: #4a3a6a;
+        }
+        .note-count.near { color: #f59e0b; }
+
+        .btn-send {
+            background: #5b21b6;
+            color: #fff;
+            border: 1px solid #6d28d9;
+            border-radius: 8px;
+            font-family: 'Raleway', sans-serif;
+            font-size: .85rem;
+            font-weight: 700;
+            letter-spacing: .05em;
+            padding: .6rem 1.25rem;
+            cursor: pointer;
+            transition: background .2s, opacity .2s, transform .1s;
+        }
+        .btn-send:hover:not(:disabled) { background: #6d28d9; }
+        .btn-send:active { transform: scale(.97); }
+        .btn-send:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+
+        .note-feedback {
+            font-size: .78rem;
+            font-weight: 700;
+            text-align: center;
+            padding: .5rem;
+            border-radius: 6px;
+            display: none;
+        }
+        .note-feedback.ok    { background: rgba(134,239,172,.1); color: #86efac; display: block; }
+        .note-feedback.error { background: rgba(239,68,68,.1);   color: #fca5a5; display: block; }
+
+        /* ── Notes list ── */
+        .notes-list {
+            margin-top: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: .6rem;
+        }
+
+        .notes-list-label {
+            font-size: .65rem;
+            font-weight: 700;
+            letter-spacing: .1em;
+            text-transform: uppercase;
+            color: #4a6a8a;
+            margin-bottom: .25rem;
+        }
+
+        .note-item {
+            background: #0a0a1a;
+            border: 1px solid #1e1e35;
+            border-radius: 8px;
+            padding: .65rem .75rem;
+            display: flex;
+            gap: .75rem;
+            align-items: flex-start;
+        }
+
+        .note-item-body { flex: 1; min-width: 0; }
+
+        .note-item-text {
+            font-size: .85rem;
+            color: #c0c0e0;
+            word-break: break-word;
+        }
+
+        .note-item-meta {
+            margin-top: .25rem;
+            font-size: .7rem;
+            color: #4a3a6a;
+        }
+
+        .note-badge {
+            flex-shrink: 0;
+            font-size: .6rem;
+            font-weight: 700;
+            letter-spacing: .07em;
+            text-transform: uppercase;
+            padding: .2rem .45rem;
+            border-radius: 4px;
+            margin-top: .1rem;
+        }
+
+        .note-badge.queued { background: rgba(91,33,182,.3);  color: #b47fff; border: 1px solid #5b21b6; }
+        .note-badge.played { background: rgba(134,239,172,.1); color: #86efac; border: 1px solid #2e7d52; }
+
+        .notes-empty {
+            font-size: .82rem;
+            color: #3a2a5a;
+            text-align: center;
+            padding: .75rem 0;
+        }
+
+        /* ── Song request tab ── */
+        .search-row {
+            display: flex;
+            gap: .5rem;
+        }
+
+        .search-input-wrap {
+            flex: 1;
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .search-input {
+            width: 100%;
+            background: #0a0a1a;
+            border: 1px solid #2a2a4a;
+            border-radius: 8px;
+            color: #fff;
+            font-family: 'Lato', sans-serif;
+            font-size: .9rem;
+            padding: .65rem 2rem .65rem .85rem;
+            outline: none;
+            transition: border-color .2s;
+        }
+        .search-input:focus { border-color: #5b21b6; }
+        .search-input::placeholder { color: #3a2a5a; }
+
+        .btn-clear-search {
+            position: absolute;
+            right: .55rem;
+            background: none;
+            border: none;
+            color: #4a3a6a;
+            font-size: 1rem;
+            line-height: 1;
+            cursor: pointer;
+            padding: .2rem;
+            display: none;
+            transition: color .15s;
+        }
+        .btn-clear-search:hover { color: #c0c0e0; }
+
+        .btn-search {
+            background: #1e3a5f;
+            color: #64b5f6;
+            border: 1px solid #2a5a8a;
+            border-radius: 8px;
+            font-family: 'Raleway', sans-serif;
+            font-size: .85rem;
+            font-weight: 700;
+            padding: .65rem 1rem;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: background .2s;
+        }
+        .btn-search:hover { background: #2a4a7a; }
+        .btn-search:disabled { opacity: .4; cursor: not-allowed; }
+
+        .search-results {
+            margin-top: .75rem;
+            display: flex;
+            flex-direction: column;
+            gap: .45rem;
+        }
+
+        .search-result {
+            display: flex;
+            align-items: center;
+            gap: .75rem;
+            background: #0a0a1a;
+            border: 1px solid #1e1e35;
+            border-radius: 8px;
+            padding: .5rem .75rem;
+            cursor: pointer;
+            transition: border-color .2s, background .2s;
+        }
+        .search-result:hover { border-color: #5b21b6; background: #0f0f25; }
+
+        .sr-art {
+            width: 40px;
+            height: 40px;
+            border-radius: 4px;
+            object-fit: cover;
+            flex-shrink: 0;
+            background: #1a1a35;
+        }
+
+        .sr-text { flex: 1; min-width: 0; }
+
+        .sr-title {
+            font-size: .85rem;
+            font-weight: 700;
+            color: #fff;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .sr-artist {
+            font-size: .75rem;
+            color: #6b5a8a;
+            margin-top: .1rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .btn-request {
+            flex-shrink: 0;
+            background: #5b21b6;
+            color: #fff;
+            border: 1px solid #6d28d9;
+            border-radius: 6px;
+            font-family: 'Raleway', sans-serif;
+            font-size: .75rem;
+            font-weight: 700;
+            padding: .35rem .7rem;
+            cursor: pointer;
+            transition: background .2s, opacity .2s;
+        }
+        .btn-request:hover { background: #6d28d9; }
+        .btn-request:disabled { opacity: .4; cursor: not-allowed; }
+
+        .req-feedback {
+            font-size: .78rem;
+            font-weight: 700;
+            text-align: center;
+            padding: .45rem;
+            border-radius: 6px;
+            margin-top: .5rem;
+            display: none;
+        }
+        .req-feedback.ok    { background: rgba(134,239,172,.1); color: #86efac; display: block; }
+        .req-feedback.error { background: rgba(239,68,68,.1);   color: #fca5a5; display: block; }
+
+        .req-badge {
+            flex-shrink: 0;
+            font-size: .6rem;
+            font-weight: 700;
+            letter-spacing: .07em;
+            text-transform: uppercase;
+            padding: .2rem .45rem;
+            border-radius: 4px;
+        }
+        .req-badge.pending  { background: rgba(245,158,11,.15); color: #fbbf24; border: 1px solid #b45309; }
+        .req-badge.approved { background: rgba(91,33,182,.3);   color: #b47fff; border: 1px solid #5b21b6; }
+        .req-badge.played   { background: rgba(134,239,172,.1); color: #86efac; border: 1px solid #2e7d52; }
+        .req-badge.rejected { background: rgba(239,68,68,.1);   color: #fca5a5; border: 1px solid #991b1b; }
+    </style>
+</head>
+<body>
+    <header>
+        <span class="brand">📻 SRS RADIO</span>
+        <nav>
+            <a href="{{ path('app_radio') }}">Now playing</a>
+            <a href="{{ path('app_logout') }}" class="danger">Sign out</a>
+        </nav>
+    </header>
+
+    <main>
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('on-air')">On Air</button>
+            <button class="tab-btn" onclick="switchTab('send-note')">Send a note</button>
+            <button class="tab-btn" onclick="switchTab('request')">Request a song</button>
+        </div>
+
+        <div class="tab-panel active" id="tab-on-air">
+            <div class="card">
+                <div class="card-title">Now playing</div>
+
+                <div class="now-playing">
+                    <img id="np-art" class="np-art" src="" alt="" style="display:none">
+                    <div class="np-text">
+                        <div class="np-track" id="np-track">—</div>
+                        <div class="np-artist" id="np-artist">—</div>
+                    </div>
+                    <div class="np-status" id="np-status"></div>
+                </div>
+
+                <div class="next-up">
+                    <div class="next-up-label">Up next</div>
+                    <div class="next-up-row">
+                        <span class="next-icon">⏭</span>
+                        <div class="next-text">
+                            <div class="next-track" id="next-track">—</div>
+                            <div class="next-artist" id="next-artist"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="tab-panel" id="tab-send-note">
+            <div class="card">
+                <div class="card-title">Send a note to the DJ</div>
+
+                <div class="note-form">
+                    <label for="note-input">Your message</label>
+                    <textarea id="note-input" maxlength="300"
+                              placeholder="Say hi, make a request, share a thought…"></textarea>
+                    <div class="note-footer">
+                        <span class="note-count" id="note-count">0 / 300</span>
+                        <button class="btn-send" id="btn-send" onclick="sendNote()">Send to DJ</button>
+                    </div>
+                    <div class="note-feedback" id="note-feedback"></div>
+                </div>
+
+                <div class="notes-list" id="notes-list">
+                    <div class="notes-list-label">Messages</div>
+                    <div class="notes-empty" id="notes-empty" style="display:none">No messages yet.</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-panel" id="tab-request">
+            <div class="card">
+                <div class="card-title">Request a song</div>
+
+                <div class="search-row">
+                    <div class="search-input-wrap">
+                        <input type="text" class="search-input" id="req-search-input"
+                               placeholder="Search for a song or artist…" autocomplete="off">
+                        <button class="btn-clear-search" id="btn-clear-search" type="button" aria-label="Clear search">✕</button>
+                    </div>
+                    <button class="btn-search" id="btn-search" onclick="searchSongs()">Search</button>
+                </div>
+
+                <div class="search-results" id="search-results"></div>
+                <div class="req-feedback" id="req-feedback"></div>
+            </div>
+
+            <div class="card" style="margin-top:1rem">
+                <div class="card-title">Your requests</div>
+                <div class="notes-list" id="req-list" style="margin-top:0">
+                    <div class="notes-empty" id="req-empty" style="display:none">No requests yet.</div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        function switchTab(id) {
+            document.querySelectorAll('.tab-btn').forEach((btn, i) => {
+                btn.classList.toggle('active', btn.getAttribute('onclick').includes(id));
+            });
+            document.querySelectorAll('.tab-panel').forEach(p => {
+                p.classList.toggle('active', p.id === 'tab-' + id);
+            });
+        }
+
+        async function pollNowPlaying() {
+            try {
+                const res  = await fetch('{{ path('app_radio_nowplaying') }}');
+                const data = await res.json();
+
+                document.getElementById('np-track').textContent  = data.track  || '—';
+                document.getElementById('np-artist').textContent = data.artist || '—';
+
+                const art    = document.getElementById('np-art');
+                const status = document.getElementById('np-status');
+
+                if (data.image) {
+                    art.src           = data.image;
+                    art.style.display = 'block';
+                } else {
+                    art.style.display = 'none';
+                }
+
+                const playing = data.is_playing || data.status === 'playing';
+                status.textContent = playing ? '▶ Playing' : data.status === 'idle' ? 'Idle' : (data.status || '');
+                status.className   = 'np-status' + (playing ? ' playing' : '');
+
+                document.getElementById('next-track').textContent  = data.next_track_title  || '—';
+                document.getElementById('next-artist').textContent = data.next_track_artist || '';
+            } catch (_) {}
+        }
+
+        pollNowPlaying();
+        setInterval(pollNowPlaying, 5000);
+
+        /* ── Note character counter ── */
+        const noteInput = document.getElementById('note-input');
+        const noteCount = document.getElementById('note-count');
+        noteInput.addEventListener('input', () => {
+            const len = noteInput.value.length;
+            noteCount.textContent = len + ' / 300';
+            noteCount.className = 'note-count' + (len >= 260 ? ' near' : '');
+        });
+
+        /* ── Send note ── */
+        async function sendNote() {
+            const text = noteInput.value.trim();
+            const feedback = document.getElementById('note-feedback');
+            const btn = document.getElementById('btn-send');
+
+            if (!text) return;
+
+            btn.disabled = true;
+            feedback.className = 'note-feedback';
+
+            try {
+                const res = await fetch('{{ path('app_listener_note') }}', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ note: text }),
+                });
+                const data = await res.json();
+
+                if (res.ok) {
+                    noteInput.value = '';
+                    noteCount.textContent = '0 / 300';
+                    noteCount.className = 'note-count';
+                    feedback.textContent = 'Your note is on its way to the DJ!';
+                    feedback.className = 'note-feedback ok';
+                    pollNotes();
+                } else {
+                    feedback.textContent = data.error || 'Something went wrong.';
+                    feedback.className = 'note-feedback error';
+                }
+            } catch (_) {
+                feedback.textContent = 'Could not reach the server.';
+                feedback.className = 'note-feedback error';
+            } finally {
+                btn.disabled = false;
+                setTimeout(() => { feedback.className = 'note-feedback'; }, 4000);
+            }
+        }
+
+        /* Send on Ctrl/Cmd+Enter */
+        noteInput.addEventListener('keydown', e => {
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) sendNote();
+        });
+
+        /* ── Song search & request ── */
+        let searchDebounce;
+        let searchResultCache = [];
+
+        const reqInput   = document.getElementById('req-search-input');
+        const clearBtn   = document.getElementById('btn-clear-search');
+
+        reqInput.addEventListener('keydown', e => {
+            if (e.key === 'Enter') searchSongs();
+            if (e.key === 'Escape') clearSearch();
+        });
+
+        reqInput.addEventListener('input', () => {
+            clearBtn.style.display = reqInput.value ? 'block' : 'none';
+            clearTimeout(searchDebounce);
+            searchDebounce = setTimeout(searchSongs, 500);
+        });
+
+        clearBtn.addEventListener('click', () => {
+            clearSearch();
+            reqInput.focus();
+        });
+
+        function clearSearch() {
+            reqInput.value = '';
+            clearBtn.style.display = 'none';
+            document.getElementById('search-results').innerHTML = '';
+            searchResultCache = [];
+            clearTimeout(searchDebounce);
+        }
+
+        async function searchSongs() {
+            const q    = reqInput.value.trim();
+            const btn  = document.getElementById('btn-search');
+            const box  = document.getElementById('search-results');
+
+            if (!q) { box.innerHTML = ''; return; }
+
+            btn.disabled = true;
+            box.innerHTML = '<div class="notes-empty">Searching…</div>';
+
+            try {
+                const res     = await fetch('{{ path('app_song_search') }}?q=' + encodeURIComponent(q));
+                const results = await res.json();
+                box.innerHTML = '';
+                searchResultCache = results;
+
+                if (!results.length) {
+                    box.innerHTML = '<div class="notes-empty">No results found.</div>';
+                    return;
+                }
+
+                results.forEach((track, index) => {
+                    const el  = document.createElement('div');
+                    el.className = 'search-result';
+
+                    const art = document.createElement(track.image ? 'img' : 'div');
+                    art.className = 'sr-art';
+                    if (track.image) { art.src = track.image; art.alt = ''; }
+
+                    const text = document.createElement('div');
+                    text.className = 'sr-text';
+                    text.innerHTML =
+                        '<div class="sr-title">'  + escHtml(track.title)  + '</div>' +
+                        '<div class="sr-artist">' + escHtml(track.artist) + '</div>';
+
+                    const reqBtn = document.createElement('button');
+                    reqBtn.className   = 'btn-request';
+                    reqBtn.textContent = 'Request';
+                    reqBtn.addEventListener('click', () => requestSong(reqBtn, index));
+
+                    el.appendChild(art);
+                    el.appendChild(text);
+                    el.appendChild(reqBtn);
+                    box.appendChild(el);
+                });
+            } catch (_) {
+                box.innerHTML = '<div class="notes-empty">Search failed.</div>';
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        async function requestSong(btn, index) {
+            const track    = searchResultCache[index];
+            btn.disabled   = true;
+            const feedback = document.getElementById('req-feedback');
+            feedback.className = 'req-feedback';
+
+            try {
+                const res  = await fetch('{{ path('app_song_request') }}', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        spotifyId:  track.id,
+                        spotifyUri: track.uri,
+                        title:      track.title,
+                        artist:     track.artist,
+                        imageUrl:   track.image || null,
+                    }),
+                });
+                const data = await res.json();
+
+                if (res.ok) {
+                    btn.textContent = 'Requested!';
+                    feedback.textContent = '"' + track.title + '" has been requested — the admin will review it!';
+                    feedback.className = 'req-feedback ok';
+                    pollMyRequests();
+                } else {
+                    feedback.textContent = data.error || 'Something went wrong.';
+                    feedback.className = 'req-feedback error';
+                    btn.disabled = false;
+                }
+            } catch (_) {
+                feedback.textContent = 'Could not reach the server.';
+                feedback.className = 'req-feedback error';
+                btn.disabled = false;
+            }
+
+            setTimeout(() => { feedback.className = 'req-feedback'; }, 5000);
+        }
+
+        /* ── My requests list ── */
+        async function pollMyRequests() {
+            try {
+                const res      = await fetch('{{ path('app_my_song_requests') }}');
+                const requests = await res.json();
+                const list     = document.getElementById('req-list');
+                const empty    = document.getElementById('req-empty');
+
+                list.querySelectorAll('.note-item').forEach(el => el.remove());
+
+                if (!requests.length) {
+                    empty.style.display = 'block';
+                    return;
+                }
+                empty.style.display = 'none';
+
+                const labels = { pending: 'Pending', approved: 'Approved', played: 'Played', rejected: 'Rejected' };
+
+                requests.forEach(r => {
+                    const item = document.createElement('div');
+                    item.className = 'note-item';
+                    item.innerHTML =
+                        (r.imageUrl
+                            ? '<img class="sr-art" src="' + escHtml(r.imageUrl) + '" alt="" style="width:40px;height:40px;border-radius:4px;object-fit:cover;flex-shrink:0">'
+                            : '<div style="width:40px;height:40px;border-radius:4px;background:#1a1a35;flex-shrink:0"></div>') +
+                        '<div class="note-item-body">' +
+                            '<div class="note-item-text">' + escHtml(r.title) + '</div>' +
+                            '<div class="note-item-meta">' + escHtml(r.artist) + ' · ' + timeAgo(r.requestedAt) + '</div>' +
+                        '</div>' +
+                        '<span class="req-badge ' + r.status + '">' + (labels[r.status] || r.status) + '</span>';
+                    list.appendChild(item);
+                });
+            } catch (_) {}
+        }
+
+        pollMyRequests();
+        setInterval(pollMyRequests, 8000);
+
+        /* ── Notes list ── */
+        function timeAgo(ts) {
+            const diff = Math.floor(Date.now() / 1000) - ts;
+            if (diff < 60)   return 'just now';
+            if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+            if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+            return Math.floor(diff / 86400) + 'd ago';
+        }
+
+        async function pollNotes() {
+            try {
+                const res   = await fetch('{{ path('app_listener_notes') }}');
+                const notes = await res.json();
+                const list  = document.getElementById('notes-list');
+                const empty = document.getElementById('notes-empty');
+
+                // Remove old note items (keep the label and empty-state div)
+                list.querySelectorAll('.note-item').forEach(el => el.remove());
+
+                if (!notes.length) {
+                    empty.style.display = 'block';
+                    return;
+                }
+                empty.style.display = 'none';
+
+                notes.forEach(note => {
+                    const status = note.status || 'queued';
+                    const item   = document.createElement('div');
+                    item.className = 'note-item';
+                    item.innerHTML =
+                        '<div class="note-item-body">' +
+                            '<div class="note-item-text">' + escHtml(note.text) + '</div>' +
+                            '<div class="note-item-meta">' + escHtml(note.sender) + ' · ' + timeAgo(note.at) + '</div>' +
+                        '</div>' +
+                        '<span class="note-badge ' + status + '">' + (status === 'played' ? 'Aired' : 'Queued') + '</span>';
+                    list.appendChild(item);
+                });
+            } catch (_) {}
+        }
+
+        function escHtml(str) {
+            return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        }
+
+        pollNotes();
+        setInterval(pollNotes, 5000);
+    </script>
+</body>
+</html>
