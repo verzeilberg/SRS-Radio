@@ -75,7 +75,7 @@
                         {% endif %}
                         <div class="info">
                             <div class="name">{{ c.name }}</div>
-                            <div class="bday">{{ c.birthdate|date('d F Y') }}</div>
+                            <div class="bday">{{ c.birthdate|date('d F') }}</div>
                         </div>
                         <form method="post" action="/colleagues/{{ c.id }}" onsubmit="return confirm('Remove {{ c.name }}?')">
                             <input type="hidden" name="_method" value="DELETE">
@@ -95,8 +95,22 @@
                 <input type="text" name="name" placeholder="e.g. Jan de Vries" required>
             </div>
             <div class="field">
-                <label>Date of birth</label>
-                <input type="date" name="birthdate" required>
+                <label>Birthday (month / day)</label>
+                <div style="display:flex;gap:.5rem">
+                    <select name="birthdate_month" required style="flex:1;background:#1a2e42;border:1px solid #2a4a6a;border-radius:6px;color:#fff;padding:0.6rem 0.8rem;font-size:0.9rem;font-family:inherit">
+                        <option value="">Month</option>
+                        {% set months = {1:'January',2:'February',3:'March',4:'April',5:'May',6:'June',7:'July',8:'August',9:'September',10:'October',11:'November',12:'December'} %}
+                        {% for m in 1..12 %}
+                            <option value="{{ m }}">{{ months[m] }}</option>
+                        {% endfor %}
+                    </select>
+                    <select name="birthdate_day" required style="flex:1;background:#1a2e42;border:1px solid #2a4a6a;border-radius:6px;color:#fff;padding:0.6rem 0.8rem;font-size:0.9rem;font-family:inherit">
+                        <option value="">Day</option>
+                        {% for d in 1..31 %}
+                            <option value="{{ d }}">{{ d }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
             </div>
             <div class="field">
                 <label>Photo (optional)</label>

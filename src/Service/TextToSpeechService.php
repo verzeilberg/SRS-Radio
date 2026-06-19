@@ -189,7 +189,11 @@ class TextToSpeechService
 
     private function generateVoiceEdgeTts(string $text, string $path): void
     {
-        $cmd    = 'edge-tts --voice ' . escapeshellarg($this->voice)
+        $edgeTts = 'edge-tts';
+        foreach (['/home/sander/.local/bin/edge-tts', '/usr/local/bin/edge-tts'] as $p) {
+            if (is_executable($p)) { $edgeTts = $p; break; }
+        }
+        $cmd    = $edgeTts . ' --voice ' . escapeshellarg($this->voice)
                 . ' --text ' . escapeshellarg($text)
                 . ' --write-media ' . escapeshellarg($path) . ' 2>&1';
         $output = shell_exec($cmd);

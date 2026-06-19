@@ -31,20 +31,16 @@ class ColleagueController extends AbstractController
     #[Route('', methods: ['POST'])]
     public function create(Request $request): Response
     {
-        $name      = trim((string) $request->request->get('name', ''));
-        $birthdate = trim((string) $request->request->get('birthdate', ''));
+        $name  = trim((string) $request->request->get('name', ''));
+        $month = (int) $request->request->get('birthdate_month', '0');
+        $day   = (int) $request->request->get('birthdate_day', '0');
 
-        if ($name === '' || $birthdate === '') {
-            $this->addFlash('error', 'Name and birthdate are required.');
+        if ($name === '' || !checkdate($month, $day, 2000)) {
+            $this->addFlash('error', 'Name and birthdate (month/day) are required.');
             return $this->redirectToRoute('colleagues');
         }
 
-        try {
-            $date = new \DateTimeImmutable($birthdate);
-        } catch (\Exception) {
-            $this->addFlash('error', 'Invalid birthdate format.');
-            return $this->redirectToRoute('colleagues');
-        }
+        $date = new \DateTimeImmutable(sprintf('2000-%02d-%02d', $month, $day));
 
         $pictureFilename = null;
         $file = $request->files->get('picture');

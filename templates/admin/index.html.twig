@@ -177,6 +177,32 @@
 
         .np-status.playing { color: #86efac; }
 
+        .progress-track {
+            height: 5px;
+            background: #1a1a35;
+            border-radius: 3px;
+            overflow: hidden;
+            width: 100%;
+            margin-bottom: .4rem;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #5b21b6, #b47fff);
+            border-radius: 3px;
+            width: 0%;
+            transition: width 1s linear;
+        }
+
+        .progress-times {
+            display: flex;
+            justify-content: space-between;
+            font-size: .75rem;
+            color: #4a3a6a;
+            font-variant-numeric: tabular-nums;
+            letter-spacing: .03em;
+        }
+
         .volume-label { font-size: .7rem; color: #4a3a6a; letter-spacing: .1em; text-transform: uppercase; margin-top: .2rem; }
         .volume-backend { font-size: .65rem; color: #3a2a5a; margin-top: .1rem; }
 
@@ -969,7 +995,17 @@
                     <div class="np-status" id="np-status"></div>
                 </div>
 
-                <div class="controls" style="margin-top:1rem">
+                <div class="progress-wrap" id="progress-wrap" style="display:none;margin-top:.75rem">
+                    <div class="progress-track">
+                        <div class="progress-bar" id="progress-bar"></div>
+                    </div>
+                    <div class="progress-times">
+                        <span id="time-elapsed">0:00</span>
+                        <span id="time-remaining">-0:00</span>
+                    </div>
+                </div>
+
+                <div class="controls" style="margin-top:.75rem">
                     <button class="btn btn-start"   id="btn-start"   onclick="startRadio()" style="display:none">▶ Start</button>
                     <button class="btn btn-stop"    id="btn-stop"    onclick="stopRadio()"  style="display:none">■ Stop</button>
                     <button class="btn btn-pause"   id="btn-pause"   onclick="togglePause()">⏸ Pause</button>
@@ -1073,7 +1109,7 @@
 
                                     <div class="colleague-info">
                                         <div class="colleague-name">{{ c.name }}</div>
-                                        <div class="colleague-bday">{{ c.birthdate|date('Y-m-d') }}</div>
+                                        <div class="colleague-bday">{{ c.birthdate|date('d F') }}</div>
                                     </div>
 
                                     <form method="post" action="{{ path('colleagues') }}/{{ c.id }}"
@@ -1102,10 +1138,22 @@
                         </div>
 
                         <div class="field">
-                            <label for="c-bday">Date of birth</label>
-                            <input type="text" id="c-bday" name="birthdate"
-                                   placeholder="YYYY-MM-DD" pattern="\d{4}-\d{2}-\d{2}"
-                                   title="Use format YYYY-MM-DD, e.g. 1990-05-11" required>
+                            <label>Birthday (month / day)</label>
+                            <div style="display:flex;gap:.5rem">
+                                <select id="c-bday-month" name="birthdate_month" required style="flex:1;background:#1a1a3a;border:1px solid #2a2a4a;border-radius:6px;color:#fff;padding:0.6rem 0.8rem;font-size:0.9rem;font-family:inherit">
+                                    <option value="">Month</option>
+                                    {% set months = {1:'January',2:'February',3:'March',4:'April',5:'May',6:'June',7:'July',8:'August',9:'September',10:'October',11:'November',12:'December'} %}
+                                    {% for m in 1..12 %}
+                                        <option value="{{ m }}">{{ months[m] }}</option>
+                                    {% endfor %}
+                                </select>
+                                <select id="c-bday-day" name="birthdate_day" required style="flex:1;background:#1a1a3a;border:1px solid #2a2a4a;border-radius:6px;color:#fff;padding:0.6rem 0.8rem;font-size:0.9rem;font-family:inherit">
+                                    <option value="">Day</option>
+                                    {% for d in 1..31 %}
+                                        <option value="{{ d }}">{{ d }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
                         </div>
 
                         <div class="field">
@@ -1154,6 +1202,24 @@
                         <button type="submit" class="btn-submit">Add to calendar</button>
                     </form>
                 </div>
+            </div>
+        </div>
+
+        {# ── Soccer / WK Pool ── #}
+        <div class="section">
+            <div class="section-header">
+                <h2>⚽ WK Pool</h2>
+            </div>
+            <div class="section-card" style="padding:1.5rem">
+                <div class="field">
+                    <label for="soccer-start">Start date</label>
+                    <input type="date" id="soccer-start" value="{{ soccer_start }}" class="pool-search-input">
+                </div>
+                <div class="field">
+                    <label for="soccer-end">End date</label>
+                    <input type="date" id="soccer-end" value="{{ soccer_end }}" class="pool-search-input">
+                </div>
+                <button class="btn-submit" onclick="saveSoccerDates()">Save dates</button>
             </div>
         </div>
 
@@ -1256,6 +1322,36 @@
         }
 
         /* ── Now playing poller ── */
+        let progressMs  = 0;
+        let durationMs  = 0;
+        let progressTimer = null;
+
+        function fmtMs(ms) {
+            const totalSec = Math.max(0, Math.floor(ms / 1000));
+            const m = Math.floor(totalSec / 60);
+            const s = String(totalSec % 60).padStart(2, '0');
+            return m + ':' + s;
+        }
+
+        function updateProgressUI() {
+            const wrap = document.getElementById('progress-wrap');
+            if (durationMs <= 0) {
+                wrap.style.display = 'none';
+                return;
+            }
+            wrap.style.display = '';
+            document.getElementById('progress-bar').style.width =
+                (progressMs / durationMs * 100) + '%';
+            document.getElementById('time-elapsed').textContent   = fmtMs(progressMs);
+            document.getElementById('time-remaining').textContent = '-' + fmtMs(durationMs - progressMs);
+        }
+
+        function tickProgress() {
+            if (durationMs <= 0) return;
+            progressMs = Math.min(progressMs + 1000, durationMs);
+            updateProgressUI();
+        }
+
         async function pollNowPlaying() {
             try {
                 const res  = await fetch('{{ path('app_radio_nowplaying') }}');
@@ -1277,6 +1373,13 @@
                 const playing = data.is_playing || data.status === 'playing';
                 status.textContent  = playing ? '▶ Playing' : data.status === 'idle' ? 'Idle' : data.status;
                 status.className    = 'np-status' + (playing ? ' playing' : '');
+
+                durationMs = data.duration_ms || 0;
+                progressMs = data.progress_ms || 0;
+                updateProgressUI();
+
+                clearInterval(progressTimer);
+                if (playing && durationMs > 0) progressTimer = setInterval(tickProgress, 1000);
             } catch (_) {}
         }
 
@@ -1399,6 +1502,22 @@
                 showToast('Request failed', true);
             } finally {
                 setTimeout(() => { btn.disabled = false; btn.textContent = '▶ Start'; }, 5000);
+            }
+        }
+
+        async function saveSoccerDates() {
+            const start = document.getElementById('soccer-start').value;
+            const end   = document.getElementById('soccer-end').value;
+            try {
+                const res = await fetch('{{ path('app_admin_soccer_save') }}', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({start, end}),
+                });
+                const data = await res.json();
+                showToast(data.success ? 'Saved!' : data.error || 'Failed', !data.success);
+            } catch (e) {
+                showToast('Request failed', true);
             }
         }
 
@@ -1614,12 +1733,19 @@
                         <span class="pool-item-label">${escReq(p.label)}</span>
                         <span class="pool-item-id">${escReq(p.spotifyId)}</span>
                         <button class="btn-pool-toggle ${p.active ? 'active' : ''}"
-                                onclick="togglePlaylist(${p.id})">
+                                data-id="${p.id}">
                             ${p.active ? 'Active' : 'Inactive'}
                         </button>
-                        <button class="btn-pool-remove" onclick="removePlaylist(${p.id}, '${escReq(p.label)}')">Remove</button>
+                        <button class="btn-pool-remove" data-id="${p.id}" data-label="${escReq(p.label)}">Remove</button>
                     </div>
                 `).join('');
+
+                container.querySelectorAll('.btn-pool-toggle').forEach(btn => {
+                    btn.addEventListener('click', () => togglePlaylist(parseInt(btn.dataset.id)));
+                });
+                container.querySelectorAll('.btn-pool-remove').forEach(btn => {
+                    btn.addEventListener('click', () => removePlaylist(parseInt(btn.dataset.id), btn.dataset.label));
+                });
 
                 // Refresh add-buttons in search results
                 renderSearchResults();
@@ -1719,13 +1845,18 @@
                             <div class="pool-result-owner">${escReq(r.owner)}</div>
                         </div>
                         <button class="btn-pool-add"
-                                ${alreadyAdded ? 'disabled' : ''}
-                                onclick="addPlaylist('${escReq(r.id)}', '${escReq(r.name)}')">
+                                data-id="${escReq(r.id)}"
+                                data-name="${escReq(r.name)}"
+                                ${alreadyAdded ? 'disabled' : ''}>
                             ${alreadyAdded ? '✓ Added' : '+ Add'}
                         </button>
                     </div>
                 `;
             }).join('');
+
+            container.querySelectorAll('.btn-pool-add:not([disabled])').forEach(btn => {
+                btn.addEventListener('click', () => addPlaylist(btn.dataset.id, btn.dataset.name));
+            });
         }
 
         loadPool();

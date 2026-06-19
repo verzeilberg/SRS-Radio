@@ -21,7 +21,11 @@ class DjVoicesCommand extends Command
         $io   = new SymfonyStyle($input, $output);
         $lang = $input->getOption('lang');
 
-        $raw = shell_exec('edge-tts --list-voices 2>&1');
+        $bin = 'edge-tts';
+        foreach (['/home/sander/.local/bin/edge-tts', '/usr/local/bin/edge-tts'] as $p) {
+            if (is_executable($p)) { $bin = $p; break; }
+        }
+        $raw = shell_exec($bin . ' --list-voices 2>&1');
         if (!$raw) {
             $io->error('edge-tts niet gevonden of geen output.');
             return Command::FAILURE;

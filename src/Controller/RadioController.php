@@ -31,7 +31,20 @@ class RadioController extends AbstractController
     #[Route('/', name: 'app_radio', methods: ['GET'])]
     public function index(): Response
     {
-        return $this->render('radio/index.html.twig', ['station' => 'SRS FM']);
+        $soccerFile = $this->projectDir . '/var/soccer-dates.json';
+        $soccerStart = '';
+        $soccerEnd   = '';
+        if (file_exists($soccerFile)) {
+            $data = json_decode(file_get_contents($soccerFile), true);
+            $soccerStart = $data['start'] ?? '';
+            $soccerEnd   = $data['end'] ?? '';
+        }
+
+        return $this->render('radio/index.html.twig', [
+            'station'      => 'SRS FM',
+            'soccer_start' => $soccerStart,
+            'soccer_end'   => $soccerEnd,
+        ]);
     }
 
     #[Route('/api/jira-tickets', methods: ['GET'])]

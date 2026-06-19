@@ -46,4 +46,14 @@ class SongRequestRepository extends ServiceEntityRepository
             ->getQuery()
             ->getResult();
     }
+
+    public function deleteOlderThan(\DateTimeImmutable $cutoff): int
+    {
+        return $this->createQueryBuilder('r')
+            ->delete()
+            ->where('r.requestedAt < :cutoff')
+            ->setParameter('cutoff', $cutoff)
+            ->getQuery()
+            ->execute();
+    }
 }

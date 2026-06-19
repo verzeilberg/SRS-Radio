@@ -40,6 +40,12 @@ services:
             $clientSecret: '%env(SPOTIFY_CLIENT_SECRET)%'
             $redirectUri: '%env(SPOTIFY_REDIRECT_URI)%'
 
+    App\Command\SpotifyLoginCommand:
+        arguments:
+            $clientId: '%env(SPOTIFY_CLIENT_ID)%'
+            $clientSecret: '%env(SPOTIFY_CLIENT_SECRET)%'
+            $redirectUri: '%env(SPOTIFY_REDIRECT_URI)%'
+
     App\Service\SonosApiService:
         arguments:
             $clientId: '%env(SONOS_CLIENT_ID)%'

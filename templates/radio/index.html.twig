@@ -35,9 +35,27 @@
     .panel-right {
         width: 50%;
         background: #0a1929;
+        display: flex;
+        flex-direction: column;
+        padding: 2.5rem 2rem;
+        overflow-y: auto;
     }
 
-    .panel-right.hidden {
+    .panel-right:has(.jira-section.hidden):has(.ranking-section.hidden) {
+        display: none;
+    }
+
+    .jira-section.hidden {
+        display: none;
+    }
+
+    .ranking-section {
+        border-top: 1px solid rgba(255,255,255,0.06);
+        padding-top: 1.5rem;
+        margin-top: 1.5rem;
+    }
+
+    .ranking-section.hidden {
         display: none;
     }
 
@@ -237,13 +255,6 @@
     .setup-link:hover { color: rgba(255,255,255,0.6); }
 
     /* ── Right panel: Jira alerts ── */
-    .panel-right {
-        display: flex;
-        flex-direction: column;
-        padding: 2.5rem 2rem;
-        overflow-y: auto;
-    }
-
     .jira-header {
         display: flex;
         align-items: center;
@@ -303,6 +314,178 @@
         color: #ff6b6b;
         text-transform: uppercase;
         margin-bottom: 0.35rem;
+    }
+
+    .ranking-header {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        margin-bottom: 1rem;
+    }
+
+    .ranking-header-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #2ea3f2;
+        flex-shrink: 0;
+        animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    .ranking-header-label {
+        font-family: 'Raleway', sans-serif;
+        font-size: .95rem;
+        font-weight: 700;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: #2ea3f2;
+    }
+
+    .ranking-section table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: .78rem;
+    }
+
+    .ranking-section th {
+        text-align: left;
+        padding: .35rem .5rem;
+        font-size: .6rem;
+        font-weight: 700;
+        letter-spacing: .1em;
+        text-transform: uppercase;
+        color: rgba(255,255,255,0.25);
+        border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+
+    .ranking-section td {
+        padding: .4rem .5rem;
+        border-bottom: 1px solid rgba(255,255,255,0.03);
+        color: rgba(255,255,255,0.6);
+        font-family: 'Lato', sans-serif;
+    }
+
+    .ranking-section tr:hover td {
+        background: rgba(46,163,242,0.04);
+    }
+
+    .ranking-section tr,
+    .ranking-section td,
+    .ranking-section th,
+    .ranking-section table,
+    .ranking-section tbody,
+    .ranking-section thead {
+        background: transparent !important;
+    }
+
+    .ranking-section a,
+    .ranking-section a:visited {
+        color: #2ea3f2;
+        text-decoration: none;
+    }
+
+    .ranking-section a:hover {
+        text-decoration: underline;
+    }
+
+    .ranking-section .ranking-widget-player img {
+        border-radius: 50%;
+        object-fit: cover;
+        flex-shrink: 0;
+    }
+
+    .ranking-podium {
+        display: flex;
+        align-items: flex-end;
+        justify-content: center;
+        gap: 1.5rem;
+        margin-bottom: 1.5rem;
+        padding: 1rem 0;
+    }
+
+    .ranking-podium-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: .4rem;
+        text-align: center;
+        flex: 1;
+        max-width: 120px;
+    }
+
+    .ranking-podium-item .podium-crown {
+        font-size: 1.4rem;
+        line-height: 1;
+    }
+
+    .ranking-podium-item .podium-img {
+        border-radius: 50%;
+        object-fit: cover;
+        border: 3px solid;
+        flex-shrink: 0;
+    }
+
+    .ranking-podium-item .podium-name {
+        font-family: 'Raleway', sans-serif;
+        font-size: .75rem;
+        font-weight: 700;
+        letter-spacing: .05em;
+        color: rgba(255,255,255,0.85);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 100%;
+    }
+
+    .ranking-podium-item .podium-score {
+        font-size: .7rem;
+        font-weight: 400;
+        color: rgba(255,255,255,0.4);
+    }
+
+    .ranking-podium-item .podium-step {
+        width: 100%;
+        border-radius: 6px 6px 0 0;
+        min-height: 40px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-end;
+        padding: .5rem .3rem .3rem;
+        gap: .2rem;
+    }
+
+    .ranking-podium-item.is-1st .podium-step {
+        background: linear-gradient(180deg, rgba(255,215,0,0.2), rgba(255,215,0,0.05));
+        border: 1px solid rgba(255,215,0,0.3);
+        min-height: 100px;
+    }
+
+    .ranking-podium-item.is-2nd .podium-step {
+        background: linear-gradient(180deg, rgba(192,192,192,0.15), rgba(192,192,192,0.03));
+        border: 1px solid rgba(192,192,192,0.25);
+        min-height: 75px;
+    }
+
+    .ranking-podium-item.is-3rd .podium-step {
+        background: linear-gradient(180deg, rgba(205,127,50,0.15), rgba(205,127,50,0.03));
+        border: 1px solid rgba(205,127,50,0.25);
+        min-height: 55px;
+    }
+
+    .ranking-podium-item.is-1st .podium-img { border-color: #ffd700; width: 60px; height: 60px; }
+    .ranking-podium-item.is-2nd .podium-img { border-color: #c0c0c0; width: 50px; height: 50px; }
+    .ranking-podium-item.is-3rd .podium-img { border-color: #cd7f32; width: 45px; height: 45px; }
+
+    .ranking-section .ranking-loading {
+        font-size: .82rem;
+        color: rgba(255,255,255,0.2);
+        font-style: italic;
+        padding: .5rem 0;
+    }
+
+    .ranking-section .ranking-loading::after {
+        content: 'Laden…';
     }
 
     .jira-summary {
@@ -598,12 +781,145 @@
 
     </div>
 
-    <div class="panel-right hidden" id="panel-right">
-        <div class="jira-header">
-            <span class="jira-header-dot" id="jira-dot" style="animation:none;background:rgba(255,255,255,0.15)"></span>
-            <span class="jira-header-label">Highest Priority Ticket</span>
+    <div class="panel-right" id="panel-right">
+        <div class="jira-section" id="jira-section">
+            <div class="jira-header">
+                <span class="jira-header-dot" id="jira-dot" style="animation:none;background:rgba(255,255,255,0.15)"></span>
+                <span class="jira-header-label">Highest Priority Ticket</span>
+            </div>
+            <div id="jira-list"><span class="jira-empty">Laden…</span></div>
         </div>
-        <div id="jira-list"><span class="jira-empty">Laden…</span></div>
+
+        <div class="ranking-section hidden" id="ranking-section">
+            <div class="ranking-header">
+                <span class="ranking-header-dot"></span>
+                <span class="ranking-header-label">WK Pool</span>
+            </div>
+            <div class="ranking-widget-fetch-area">
+                <div class="ranking-loading"></div>
+                <script>
+                    // Only show ranking during the WK pool period (start → end + 7 days)
+                    const soccerStart = '{{ soccer_start }}';
+                    const soccerEnd   = '{{ soccer_end }}';
+                    if (soccerStart && soccerEnd) {
+                        const today   = new Date();
+                        const start   = new Date(soccerStart + 'T00:00:00');
+                        const end     = new Date(soccerEnd + 'T00:00:00');
+                        const windowEnd = new Date(end);
+                        windowEnd.setDate(windowEnd.getDate() + 7);
+                        if (today < start || today > windowEnd) throw new Error('Outside WK pool date range');
+                    }
+
+                    const nameToImage = {
+                        jeffrey: 'Jeffrey.jpg', peter: 'peterr.jpg', jan: 'Jan_6246.jpg',
+                        marvin: 'Marvin.jpg', mrvn: 'Marvin.jpg', sophie: 'Sophie_4397.jpg', gianni: 'Gianni.jpg',
+                        darrel: 'Darrel_4402.jpg', angela: 'Angela-Bosch.jpg',
+                        willemjan: 'Willem-Jan-Dekker.jpg', mario: 'Mario_6198.jpg',
+                        roja: 'Roja_6258.jpg', ghassen: 'Ghassen-Yahyaoui.jpg',
+                        sander: 'sander-srs.jpg', madelieffan: 'sander-srs.jpg', robin: 'Robin-Bosma.jpg',
+                        lynn: 'Lynn.jpg', teunis: 'Teunis-Vaandering-2.jpg',
+                        kees: 'kees-smit.jpg', lorenzo: 'Lorenzo-Morman.jpg',
+                        matthijn: 'Matthijn-Arends.jpg', ashwand: 'Ashwand-Radja.jpg',
+                        danny: 'Danny-Stam.jpg',                         marcella: 'Marcella_6274.jpg', cellatjuh: 'Marcella_6274.jpg',
+                        ricardo: 'Ricardo_4431.jpg', jasper: 'Jasper.jpg',
+                    };
+
+                    function findImage(name) {
+                        const raw = name.toLowerCase().replace(/[^a-z]/g, '');
+                        for (const [key, file] of Object.entries(nameToImage)) {
+                            if (raw.startsWith(key) || key.startsWith(raw)) return file;
+                        }
+                        return null;
+                    }
+
+                    fetch('https://www.wkpooltjes.nl/rankingpoolwidget/61e2c6179a7904cb7504e053a62444d0/127/')
+                        .then((r) => r.text())
+                        .then((h) => {
+                            const area = document.querySelector('.ranking-widget-fetch-area');
+                            area.innerHTML = h;
+
+                            area.querySelectorAll('.ranking-widget-player').forEach(el => {
+                                const svg = el.querySelector('svg');
+                                const textNode = [...el.childNodes].find(n => n.nodeType === Node.TEXT_NODE && n.textContent.trim());
+                                if (!textNode) return;
+                                const username = textNode.textContent.trim();
+                                const imgFile = findImage(username);
+                                if (imgFile && svg) {
+                                    const img = document.createElement('img');
+                                    img.src = '/images/colleagues/' + imgFile;
+                                    img.alt = username;
+                                    img.style.width = '45px';
+                                    img.style.height = '45px';
+                                    img.style.borderRadius = '50%';
+                                    img.style.objectFit = 'cover';
+                                    img.style.marginRight = '5px';
+                                    img.style.flexShrink = '0';
+                                    svg.replaceWith(img);
+                                }
+                            });
+
+                            const dataList = [...area.querySelectorAll('ol.ranking-widget-list')]
+                                .find(ol => !ol.querySelector('.ranking-widget-list-header'));
+                            if (dataList) {
+                                const medallions = ['\u{1F947}', '\u{1F948}', '\u{1F949}'];
+                                const topItems = [];
+                                for (let i = 0; i < 3; i++) {
+                                    const li = dataList.children[i];
+                                    if (!li) break;
+                                    const playerEl = li.querySelector('.ranking-widget-player');
+                                    const textNode = [...playerEl.childNodes].find(n => n.nodeType === Node.TEXT_NODE && n.textContent.trim());
+                                    const name = textNode ? textNode.textContent.trim() : '';
+                                    const scoreEl = li.querySelector('.ranking-widget-score');
+                                    const score = scoreEl ? scoreEl.textContent.trim() : '';
+                                    const imgEl = playerEl.querySelector('img');
+                                    const imgSrc = imgEl ? imgEl.src : '';
+                                    topItems.push({ name, score, imgSrc });
+                                    li.style.display = 'none';
+                                }
+                                if (topItems.length > 0) {
+                                    const podium = document.createElement('div');
+                                    podium.className = 'ranking-podium';
+                                    const order = [1, 0, 2];
+                                    const classes = ['is-2nd', 'is-1st', 'is-3rd'];
+                                    order.forEach((idx, col) => {
+                                        const item = topItems[idx];
+                                        if (!item) return;
+                                        const div = document.createElement('div');
+                                        div.className = 'ranking-podium-item ' + classes[col];
+                                        div.innerHTML =
+                                            '<div class="podium-step">' +
+                                                '<div class="podium-crown">' + medallions[idx] + '</div>' +
+                                                (item.imgSrc ? '<img class="podium-img" src="' + item.imgSrc + '" alt="' + item.name + '">' : '') +
+                                                '<div class="podium-name">' + item.name + '</div>' +
+                                                '<div class="podium-score">' + item.score + '</div>' +
+                                            '</div>';
+                                        podium.appendChild(div);
+                                    });
+                                    dataList.parentNode.insertBefore(podium, dataList);
+                                }
+                            }
+
+                            // Hide the header row
+                            const headerOL = [...area.querySelectorAll('ol.ranking-widget-list')]
+                                .find(ol => ol.querySelector('.ranking-widget-list-header'));
+                            if (headerOL) headerOL.style.display = 'none';
+
+                            area.querySelectorAll('*').forEach(el => {
+                                let ownText = '';
+                                for (const child of el.childNodes) {
+                                    if (child.nodeType === Node.TEXT_NODE) ownText += child.textContent;
+                                }
+                                if (ownText.includes('(beheerder)')) el.style.display = 'none';
+                                el.style.removeProperty('background');
+                                el.style.removeProperty('background-color');
+                            });
+
+                            document.getElementById('ranking-section').classList.remove('hidden');
+                        });
+                </script>
+            </div>
+
+        </div>
     </div>
 
 </div>
@@ -1091,7 +1407,7 @@ async function pollJira() {
     try {
         const res     = await fetch('/api/jira-tickets');
         const tickets = await res.json();
-        const panel   = document.getElementById('panel-right');
+        const panel   = document.getElementById('jira-section');
         const dot     = document.getElementById('jira-dot');
         const list    = document.getElementById('jira-list');
 

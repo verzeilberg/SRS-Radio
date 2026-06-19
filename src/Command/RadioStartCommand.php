@@ -19,6 +19,7 @@ use App\Service\TextToSpeechService;
 use App\Service\NewsService;
 use App\Service\WeatherService;
 use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Contracts\HttpClient\HttpClientInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Formatter\OutputFormatterInterface;
@@ -70,6 +71,7 @@ class RadioStartCommand extends Command
         private NewsService $news,
         private ColleagueRepository $colleagueRepository,
         private PlaylistRepository $playlistRepository,
+        private HttpClientInterface $httpClient,
         private string $projectDir,
         private string $spotifyDeviceName = 'PHPSD',
         private int $weatherHour = 12,
@@ -88,6 +90,7 @@ class RadioStartCommand extends Command
             [12,                 0,                    null,  'lunch'],
             [14,                 0,                    null,  'news'],
             [14,                 0,                    null,  'afternoon'],
+            [15,                 0,                    null,  'ranking'],
             [16,                 0,                    null,  'news'],
             [16,                 0,                    'Fri', 'friday_afternoon'],
             [17,                 0,                    null,  'end_of_day'],
@@ -171,6 +174,13 @@ class RadioStartCommand extends Command
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
+        // Ensure external commands (edge-tts, piper, ffmpeg, ffprobe, ip) are
+        // found regardless of how the process was launched (CLI vs admin page).
+        putenv('PATH=' . implode(':', array_unique(array_filter([
+            '/usr/local/sbin', '/usr/local/bin', '/usr/sbin', '/usr/bin', '/sbin', '/bin',
+            getenv('PATH'),
+        ]))));
+
         // Refuse to start if another instance is already running.
         $pidFile = self::pidFile();
         if (file_exists($pidFile)) {
@@ -760,6 +770,7 @@ class RadioStartCommand extends Command
         try {
             $weatherData = $type === 'weather' ? $this->weather->getCurrent() : null;
             $headlines   = $type === 'news' ? $this->news->getHeadlines(3) : null;
+            $ranking     = $type === 'ranking' ? $this->fetchRanking() : null;
 
             $djText = $this->djService->generate(new DjContext(
                 station: 'SRS FM',
@@ -770,12 +781,16 @@ class RadioStartCommand extends Command
                 type: $type,
                 weather: $weatherData,
                 headlines: $headlines,
+                ranking: $ranking,
                 recentTexts: $this->djAnnouncementRepository->findRecentTexts($type, 10),
             ));
 
             $io->writeln(sprintf('<comment>[%s]</comment> <info>DJ:</info> %s', $type, $djText));
 
-            $audioUrl = $this->tts->generate($djText);
+            $soccerBed = $this->projectDir . '/public/sounds/fillers/soccer/dj-bed.mp3';
+            $audioUrl = $type === 'ranking' && file_exists($soccerBed)
+                ? $this->tts->generateWithBed($djText, $soccerBed, 0.20)
+                : $this->tts->generate($djText);
             if (!$this->useSonosForDjClips) {
                 $this->playDjClipViaBrowser($audioUrl, $io);
             } else {
@@ -1092,31 +1107,39 @@ class RadioStartCommand extends Command
 
     private function boostVolume(int $boost = 10): ?int
     {
-        try {
-            // Sonos speaker (native or Spotify Connect): boost via group API so the clip is audible.
-            if ($this->sonosApi->getGroupId()) {
-                $vol = $this->sonosApi->getGroupVolume();
-                if ($vol !== null) {
-                    $this->sonosApi->setGroupVolume(min(100, $vol + $boost));
-                    return $vol;
+        for ($i = 0; $i < 3; $i++) {
+            try {
+                // Sonos speaker (native or Spotify Connect): boost via group API so the clip is audible.
+                if ($this->sonosApi->getGroupId()) {
+                    $vol = $this->sonosApi->getGroupVolume();
+                    if ($vol !== null) {
+                        $this->sonosApi->setGroupVolume(min(100, $vol + $boost));
+                        return $vol;
+                    }
+                }
+
+                // Non-Sonos device via Spotify Connect (e.g. Samsung soundbar): the music runs through
+                // Spotify's software volume while DJ clips use the UPnP hardware channel. Sync them so
+                // the clip plays at the same level as the music.
+                if ($this->playbackMethod === 'spotify_connect') {
+                    $deviceVol = $this->sonos->getVolume();
+                    $target    = min(100, ($this->lastSpotifyVolume ?? $deviceVol) + $boost);
+                    $this->sonos->setVolume($target);
+                    return $deviceVol;
+                }
+
+                // Sonos UPnP direct fallback.
+                $vol = $this->sonos->getVolume();
+                $this->sonos->setVolume(min(100, $vol + $boost));
+                return $vol;
+            } catch (\Throwable $e) {
+                if ($i < 2) {
+                    sleep(1);
+                } else {
+                    error_log('Volume boost failed after 3 tries: ' . $e->getMessage());
                 }
             }
-
-            // Non-Sonos device via Spotify Connect (e.g. Samsung soundbar): the music runs through
-            // Spotify's software volume while DJ clips use the UPnP hardware channel. Sync them so
-            // the clip plays at the same level as the music.
-            if ($this->playbackMethod === 'spotify_connect') {
-                $deviceVol = $this->sonos->getVolume();
-                $target    = min(100, ($this->lastSpotifyVolume ?? $deviceVol) + $boost);
-                $this->sonos->setVolume($target);
-                return $deviceVol;
-            }
-
-            // Sonos UPnP direct fallback.
-            $vol = $this->sonos->getVolume();
-            $this->sonos->setVolume(min(100, $vol + $boost));
-            return $vol;
-        } catch (\Throwable) {}
+        }
 
         return null;
     }
@@ -1126,13 +1149,22 @@ class RadioStartCommand extends Command
         if ($original === null) {
             return;
         }
-        try {
-            if ($this->sonosApi->getGroupId()) {
-                $this->sonosApi->setGroupVolume($original);
-            } else {
-                $this->sonos->setVolume($original);
+        for ($i = 0; $i < 3; $i++) {
+            try {
+                if ($this->sonosApi->getGroupId()) {
+                    $this->sonosApi->setGroupVolume($original);
+                } else {
+                    $this->sonos->setVolume($original);
+                }
+                return;
+            } catch (\Throwable $e) {
+                if ($i < 2) {
+                    sleep(1);
+                } else {
+                    error_log('Volume restore failed after 3 tries: ' . $e->getMessage());
+                }
             }
-        } catch (\Throwable) {}
+        }
     }
 
     private function handleJiraAlarm(SymfonyStyle $io): void
@@ -1262,6 +1294,52 @@ class RadioStartCommand extends Command
         }
     }
 
+    private function fetchRanking(): ?array
+    {
+        try {
+            $response = $this->httpClient->request('GET', self::RANKING_WIDGET_URL);
+            $html = $response->getContent();
+
+            $dom = new \DOMDocument();
+            @$dom->loadHTML($html);
+            $xpath = new \DOMXPath($dom);
+
+            $items = $xpath->query('//li[span[contains(@class, "ranking-widget-player")]]');
+            if ($items === false || $items->length === 0) {
+                return null;
+            }
+
+            $ranking = [];
+            foreach ($items as $item) {
+                $posEl = $xpath->query('.//span[contains(@class, "ranking-widget-position")]', $item);
+                $nameEl = $xpath->query('.//span[contains(@class, "ranking-widget-player")]', $item);
+                $scoreEl = $xpath->query('.//span[contains(@class, "ranking-widget-score")]', $item);
+
+                if ($posEl->length === 0 || $nameEl->length === 0 || $scoreEl->length === 0) {
+                    continue;
+                }
+
+                $posText = trim($posEl->item(0)->textContent);
+                preg_match('/^(\d+)/', $posText, $posMatch);
+                $position = (int) ($posMatch[1] ?? 0);
+                $name = trim(preg_replace('/\s*\(beheerder\)\s*/i', '', $nameEl->item(0)->textContent));
+                $scoreText = trim($scoreEl->item(0)->textContent);
+                preg_match('/^(\d+)/', $scoreText, $scoreMatch);
+                $score = $scoreMatch[1] ?? '0';
+
+                $ranking[] = [
+                    'position' => $position,
+                    'name' => $name,
+                    'score' => $score,
+                ];
+            }
+
+            return $ranking;
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
     private function clearDjSounds(): void
     {
         $dir = $this->projectDir . '/public/sounds/dj';
@@ -1299,6 +1377,7 @@ class RadioStartCommand extends Command
         sleep(5);
 
         $djCallbackFired = false;
+        $emptyRetries    = 0;
 
         while ($this->running && !$this->skipCurrent) {
             $this->checkSignals();
@@ -1317,22 +1396,40 @@ class RadioStartCommand extends Command
                 if ($this->playbackMethod === 'spotify_connect') {
                     $playback = $this->spotify->getCurrentPlayback();
                     if (empty($playback) || (!$playback['is_playing'] && !$this->paused)) {
-                        break;
+                        $emptyRetries++;
+                        if ($emptyRetries > 12) { // ~60s grace period (5s initial + 12 × 5s retry)
+                            break;
+                        }
+                        sleep(5);
+                        continue;
                     }
+                    $emptyRetries = 0;
                     if (isset($playback['volume_percent'])) {
                         $this->lastSpotifyVolume = $playback['volume_percent'];
                     }
                     $remaining = ($playback['duration_ms'] - $playback['progress_ms']) / 1000;
-                } elseif ($this->sonosApi->getGroupId()) {
+                } elseif ($this->playbackMethod === 'sonos_api') {
                     $playback = $this->sonosApi->getPlayback();
                     if (empty($playback) || (!$playback['is_playing'] && !$this->paused)) {
-                        break;
+                        $emptyRetries++;
+                        if ($emptyRetries > 8) { // ~45s grace period
+                            break;
+                        }
+                        sleep(5);
+                        continue;
                     }
+                    $emptyRetries = 0;
                     $remaining = ($playback['duration_ms'] - $playback['progress_ms']) / 1000;
                 } else {
                     if (!$this->sonos->isPlaying() && !$this->paused) {
-                        break;
+                        $emptyRetries++;
+                        if ($emptyRetries > 8) {
+                            break;
+                        }
+                        sleep(5);
+                        continue;
                     }
+                    $emptyRetries = 0;
                     $pos = $this->sonos->getPositionInfo();
                     // duration=0 means metadata not yet loaded — keep waiting
                     if ($pos['duration'] === 0) {
@@ -1359,10 +1456,18 @@ class RadioStartCommand extends Command
                 }
 
                 if ($remaining <= 3 && !$this->paused) {
-                    // When pre-queued: break immediately so Sonos auto-transitions while we do
-                    // bookkeeping. Without pre-queue: sleep through the last 3 seconds normally.
                     if (!$preQueued) {
-                        sleep(3);
+                        sleep(1);
+                    }
+                    // Wait for Sonos to fully stop before returning, preventing the
+                    // DJ clip (or next track) from overlapping with the track's tail.
+                    // Only applies to DLNA/UPnP — Spotify Connect and Sonos API paths
+                    // already break via their own is_playing checks before reaching here.
+                    if ($this->playbackMethod === 'upnp') {
+                        $confirmEnd = microtime(true) + 2;
+                        while ($this->sonos->isPlaying() && microtime(true) < $confirmEnd) {
+                            usleep(200_000);
+                        }
                     }
                     break;
                 }
@@ -1370,8 +1475,12 @@ class RadioStartCommand extends Command
                 sleep(min(10, max(1, (int) $remaining - 5)));
             } catch (\Throwable $e) {
                 $io->warning('Playback check mislukt: ' . $e->getMessage());
-                sleep(10);
-                break;
+                $emptyRetries++;
+                if ($emptyRetries > 4) {
+                    sleep(10);
+                    break;
+                }
+                sleep(5);
             }
         }
 

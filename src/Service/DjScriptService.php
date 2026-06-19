@@ -108,6 +108,32 @@ class DjScriptService
         return "{$base}\n\nA message came in {$from}: \"{$note}\". Read it out on air and respond to it warmly and naturally in radio DJ style. Keep it brief — max 2-3 sentences.";
     }
 
+    private function buildRankingPrompt(string $base, DjContext $ctx): string
+    {
+        if (empty($ctx->ranking)) {
+            return "{$base}\n\nGive a quick radio-style update that the WK pool ranking is available. Max 2 sentences.";
+        }
+
+        $top3 = array_slice($ctx->ranking, 0, 3);
+        $lines = [];
+        foreach ($top3 as $i => $entry) {
+            $pos = $entry['position'];
+            $suffix = match (true) {
+                $pos === 1 => 'st',
+                $pos === 2 => 'nd',
+                $pos === 3 => 'rd',
+                default => 'th',
+            };
+            $lines[] = "{$pos}{$suffix} place: {$entry['name']} with {$entry['score']} points";
+        }
+        $list = implode(', ', $lines);
+
+        return "{$base}\n\nAnnounce the current WK pool ranking on air in a fun radio DJ style. "
+            . "The top 3 are: {$list}. Briefly mention the top 3 and hype up the competition. "
+            . "If someone from the SRS team is in the lead, give them an extra shout-out. "
+            . "Max 3-4 sentences total.";
+    }
+
     private function buildAlarmPrompt(string $base, DjContext $ctx): string
     {
         $key     = $ctx->alarmKey     ?? 'UNKNOWN';
@@ -201,6 +227,8 @@ class DjScriptService
             'song_fact' => $this->buildSongFactPrompt($base, $ctx),
 
             'alarm' => $this->buildAlarmPrompt($base, $ctx),
+
+            'ranking' => $this->appendSongAnnouncement($this->buildRankingPrompt($base, $ctx), $ctx),
 
             'listener_note' => $this->buildListenerNotePrompt($base, $ctx),
 

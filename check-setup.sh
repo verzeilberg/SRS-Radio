@@ -89,6 +89,14 @@ else
 fi
 
 # Detect which TTS engine is configured
+TTS_PROVIDER=""
+for ENV_FILE in "$SCRIPT_DIR/.env.local" "$SCRIPT_DIR/.env"; do
+    if [[ -f "$ENV_FILE" ]]; then
+        V=$(grep -E '^DJ_TTS_PROVIDER=' "$ENV_FILE" | tail -1 | cut -d= -f2- | tr -d '"' || true)
+        [[ -n "$V" ]] && TTS_PROVIDER="$V" && break
+    fi
+done
+
 PIPER_MODEL=""
 for ENV_FILE in "$SCRIPT_DIR/.env.local" "$SCRIPT_DIR/.env"; do
     if [[ -f "$ENV_FILE" ]]; then
@@ -97,11 +105,32 @@ for ENV_FILE in "$SCRIPT_DIR/.env.local" "$SCRIPT_DIR/.env"; do
     fi
 done
 
-if [[ -n "$PIPER_MODEL" ]]; then
+if [[ "$TTS_PROVIDER" == "elevenlabs" ]]; then
+    info "DJ_TTS_PROVIDER=elevenlabs"
+    EL_KEY=""
+    EL_VOICE=""
+    for ENV_FILE in "$SCRIPT_DIR/.env.local" "$SCRIPT_DIR/.env"; do
+        if [[ -f "$ENV_FILE" ]]; then
+            [[ -z "$EL_KEY" ]]   && EL_KEY=$(grep -E '^ELEVENLABS_API_KEY=' "$ENV_FILE" | tail -1 | cut -d= -f2- | tr -d '"' || true)
+            [[ -z "$EL_VOICE" ]] && EL_VOICE=$(grep -E '^ELEVENLABS_VOICE_ID=' "$ENV_FILE" | tail -1 | cut -d= -f2- | tr -d '"' || true)
+        fi
+    done
+    if [[ -n "$EL_KEY" && "$EL_KEY" != "your-"* ]]; then
+        ok "ELEVENLABS_API_KEY is set"
+    else
+        fail "ELEVENLABS_API_KEY not set — required for DJ_TTS_PROVIDER=elevenlabs"
+    fi
+    if [[ -n "$EL_VOICE" && "$EL_VOICE" != "your-"* ]]; then
+        ok "ELEVENLABS_VOICE_ID is set"
+    else
+        fail "ELEVENLABS_VOICE_ID not set — required for DJ_TTS_PROVIDER=elevenlabs"
+    fi
+elif [[ "$TTS_PROVIDER" == "piper" ]] || [[ -n "$PIPER_MODEL" && "$TTS_PROVIDER" != "edge" ]]; then
+    info "DJ_TTS_PROVIDER=piper"
     if command -v piper &>/dev/null; then
         ok "piper TTS (active engine)"
     else
-        fail "piper not found but DJ_PIPER_MODEL is set — install: pip3 install piper-tts"
+        fail "piper not found but DJ_TTS_PROVIDER=piper — install: pip3 install piper-tts"
     fi
 
     PIPER_MODEL_ABS="$SCRIPT_DIR/$PIPER_MODEL"
@@ -118,7 +147,7 @@ if [[ -n "$PIPER_MODEL" ]]; then
         fail "Piper model config not found at ${PIPER_MODEL_ABS}.json — download it alongside the .onnx file"
     fi
 else
-    info "DJ_PIPER_MODEL not set — using edge-tts"
+    info "DJ_TTS_PROVIDER=edge (default)"
     if command -v edge-tts &>/dev/null; then
         ok "edge-tts $(edge-tts --version 2>/dev/null || echo '(installed)')"
     elif python3 -c "import edge_tts" 2>/dev/null; then

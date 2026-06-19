@@ -46,7 +46,29 @@ class AdminController extends AbstractController
             'users'           => $this->userRepository->findAll(),
             'colleagues'      => $this->colleagueRepository->findBy([], ['name' => 'ASC']),
             'existing_images' => $this->scanColleagueImages(),
+            'soccer_start'    => $this->getSoccerDate('start'),
+            'soccer_end'      => $this->getSoccerDate('end'),
         ]);
+    }
+
+    #[Route('/api/soccer', name: 'app_admin_soccer_save', methods: ['POST'])]
+    public function soccerSave(Request $request): JsonResponse
+    {
+        $data  = json_decode($request->getContent(), true);
+        $start = trim($data['start'] ?? '');
+        $end   = trim($data['end'] ?? '');
+
+        if ($start !== '' && !\DateTimeImmutable::createFromFormat('Y-m-d', $start)) {
+            return new JsonResponse(['error' => 'Invalid start date format (use YYYY-MM-DD)'], 400);
+        }
+        if ($end !== '' && !\DateTimeImmutable::createFromFormat('Y-m-d', $end)) {
+            return new JsonResponse(['error' => 'Invalid end date format (use YYYY-MM-DD)'], 400);
+        }
+
+        $file = $this->kernel->getProjectDir() . '/var/soccer-dates.json';
+        file_put_contents($file, json_encode(['start' => $start, 'end' => $end], JSON_PRETTY_PRINT));
+
+        return new JsonResponse(['success' => true, 'start' => $start, 'end' => $end]);
     }
 
     #[Route('/api/volume', name: 'app_admin_volume_get', methods: ['GET'])]
@@ -219,7 +241,7 @@ class AdminController extends AbstractController
                 return new JsonResponse(['success' => false, 'message' => 'Could not reach any playback device'], 500);
             }
 
-            $step   = 10;
+            $step   = 1;
             $target = match ($value) {
                 'up'    => min(100, $current + $step),
                 'down'  => max(0,   $current - $step),
@@ -303,8 +325,12 @@ class AdminController extends AbstractController
     // ── Song requests ────────────────────────────────────────────────────────
 
     #[Route('/api/song-requests', name: 'app_admin_song_requests', methods: ['GET'])]
-    public function songRequests(SongRequestRepository $repo): JsonResponse
+    public function songRequests(SongRequestRepository $repo, EntityManagerInterface $em): JsonResponse
     {
+        $cutoff = new \DateTimeImmutable('-1 day');
+        $repo->deleteOlderThan($cutoff);
+        $em->flush();
+
         $requests = $repo->findRecent(50);
         return new JsonResponse(array_map(fn($r) => [
             'id'          => $r->getId(),
@@ -430,6 +456,17 @@ class AdminController extends AbstractController
         } catch (\Throwable $e) {
             return new JsonResponse(['error' => $e->getMessage(), 'results' => []], 500);
         }
+    }
+
+    private function getSoccerDate(string $key): string
+    {
+        $file = $this->kernel->getProjectDir() . '/var/soccer-dates.json';
+        if (!file_exists($file)) {
+            return '';
+        }
+
+        $data = json_decode(file_get_contents($file), true);
+        return $data[$key] ?? '';
     }
 
     private function scanColleagueImages(): array
