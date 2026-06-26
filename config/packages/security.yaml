@@ -20,6 +20,7 @@ security:
             pattern: ^/admin
             lazy: true
             provider: app_user_provider
+            context: radio_context
             form_login:
                 login_path: app_admin_login
                 check_path: app_admin_login
@@ -37,6 +38,7 @@ security:
         main:
             lazy: true
             provider: app_user_provider
+            context: radio_context
             form_login:
                 login_path: app_login
                 check_path: app_login
