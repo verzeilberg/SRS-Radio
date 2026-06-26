@@ -547,6 +547,51 @@
         content: 'Laden…';
     }
 
+    .eq-row.hidden {
+        display: none;
+    }
+
+    .fullpage-ranking {
+        position: fixed;
+        inset: 0;
+        z-index: 150;
+        background: #0a1929;
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        padding: 3rem 2rem;
+        overflow-y: auto;
+    }
+    .fullpage-ranking.active {
+        display: flex;
+    }
+    .fullpage-ranking .ranking-header {
+        justify-content: center;
+        margin-bottom: 2rem;
+    }
+    .fullpage-ranking .ranking-header-label {
+        font-size: 1.6rem;
+    }
+
+    .fullpage-logo {
+        position: fixed;
+        inset: 0;
+        z-index: 149;
+        background: #0a1929;
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+    }
+    .fullpage-logo.active {
+        display: flex;
+    }
+    .fullpage-logo-img {
+        height: clamp(80px, 25vh, 220px);
+        filter: brightness(0) invert(1);
+        opacity: 0.9;
+    }
+
     .jira-summary {
         font-size: 0.9rem;
         font-weight: 400;
@@ -762,7 +807,7 @@
             <img src="/images/srs-logo.svg" alt="SRS" class="logo">
         </div>
 
-        <div class="eq-row">
+        <div class="eq-row" id="eq-row">
             <div class="eq-unit">
                 <svg id="eq-low" viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg">
                     <defs>
@@ -983,6 +1028,13 @@
                             });
 
                             document.getElementById('ranking-section').classList.remove('hidden');
+
+                            wkPoolActive = true;
+                            document.getElementById('fullpage-ranking-content').innerHTML = area.innerHTML;
+                            if (!isPlaying) {
+                                document.getElementById('fullpage-logo').classList.remove('active');
+                                document.getElementById('fullpage-ranking').classList.add('active');
+                            }
                         });
                 </script>
             </div>
@@ -990,6 +1042,18 @@
         </div>
     </div>
 
+</div>
+
+<div class="fullpage-ranking" id="fullpage-ranking">
+    <div class="ranking-header">
+        <span class="ranking-header-dot"></span>
+        <span class="ranking-header-label">WK Pool</span>
+    </div>
+    <div id="fullpage-ranking-content"></div>
+</div>
+
+<div class="fullpage-logo" id="fullpage-logo">
+    <img src="/images/srs-logo.svg" alt="SRS" class="fullpage-logo-img">
 </div>
 
 <div class="on-air">
@@ -1179,6 +1243,7 @@ let progressMs  = 0;
 let durationMs  = 0;
 let progressTimer = null;
 let isPlaying   = false;
+let wkPoolActive = false;
 let lastTrack   = '';
 
 // ── Three-band hexagon visualiser ─────────────────────────────────────────
@@ -1347,12 +1412,25 @@ function setOnAir(playing) {
     isPlaying = playing;
     const dot   = document.getElementById('dot');
     const label = document.getElementById('on-air-label');
+    const eqRow = document.getElementById('eq-row');
+    const fpRanking = document.getElementById('fullpage-ranking');
+    const fpLogo = document.getElementById('fullpage-logo');
     if (playing) {
         dot.classList.remove('inactive');
         label.textContent = 'on air';
+        eqRow.classList.remove('hidden');
+        fpRanking.classList.remove('active');
+        fpLogo.classList.remove('active');
     } else {
         dot.classList.add('inactive');
         label.textContent = 'wachten…';
+        eqRow.classList.add('hidden');
+        if (wkPoolActive) {
+            fpRanking.classList.add('active');
+            fpLogo.classList.remove('active');
+        } else {
+            fpLogo.classList.add('active');
+        }
     }
 }
 
