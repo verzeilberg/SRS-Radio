@@ -1177,6 +1177,11 @@ function tuneIn() {
     document.getElementById('tune-in-overlay').style.display = 'none';
 }
 
+// Auto-dismiss the tune-in overlay after 3s for devices without a mouse
+setTimeout(() => {
+    if (!audioUnlocked) tuneIn();
+}, 3000);
+
 function fadeUpdate(el, newText) {
     if (el.textContent === newText) return;
     el.style.opacity = '0';
