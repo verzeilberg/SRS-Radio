@@ -328,11 +328,10 @@ class RadioStartCommand extends Command
                     $djDurationMs = (int) ($this->tts->getDuration($nextDjUrl) * 1000);
                     $this->radioState->setTrack('DJ Sander', 'SRS FM', $djDurationMs);
                     try {
-                        $this->playDjClipViaSonos($nextDjUrl, $io, $track);
+                        $preLoaded = $this->playDjClipViaSonos($nextDjUrl, $io, $track);
                         if (!$this->skipCurrent) {
                             $this->em->persist(new DjAnnouncement($nextDjText, $nextDjUrl, $nextDjType));
-                            // Track was pre-loaded during the clip — skip playTrack() to avoid restarting it
-                            if ($djDurationMs > 2000) {
+                            if ($preLoaded) {
                                 $wasPreQueued = true;
                             }
                         }
@@ -1064,11 +1063,9 @@ class RadioStartCommand extends Command
         }
     }
 
-    private function playDjClipViaSonos(string $url, SymfonyStyle $io, ?array $nextTrack = null): void
+    private function playDjClipViaSonos(string $url, SymfonyStyle $io, ?array $nextTrack = null): bool
     {
         if ($this->sonosApi->getGroupId()) {
-            // Sonos Cloud API: overlays the clip on the active session without interrupting
-            // Spotify Connect. Pass the clip volume directly so we don't touch group volume.
             $groupVol = $this->sonosApi->getGroupVolume() ?? 40;
             $clipVol  = min(100, $groupVol + 10);
             $io->writeln(sprintf('<comment>DJ clip via Sonos API (vol %d → clip %d): %s</comment>', $groupVol, $clipVol, $url));
@@ -1076,9 +1073,6 @@ class RadioStartCommand extends Command
             $io->writeln($ok ? '<comment>audioClip OK</comment>' : '<error>audioClip FAILED</error>');
 
             $duration = $this->tts->getDuration($url);
-            // Pre-load the next track at 80% of the clip duration so it's ready the
-            // moment the clip finishes. The clip plays as an overlay — loading the
-            // stream URL replaces the queue underneath without interrupting the clip.
             if ($nextTrack !== null && $duration > 2) {
                 $preloadAt = microtime(true) + ($duration * 0.8);
                 while (microtime(true) < $preloadAt && $this->running && !$this->skipCurrent) {
@@ -1090,27 +1084,21 @@ class RadioStartCommand extends Command
                         $this->sonosApi->playSpotifyTrack($nextTrack['uri'], $nextTrack['title'], $nextTrack['artist']);
                         $io->writeln('<comment>→ Volgend nummer klaargezet tijdens clip</comment>');
                     } catch (\Throwable) {}
-                    // Let the clip finish naturally — the track will start right after
                     $remaining = ($duration * 0.2) + 0.3;
                     if ($remaining > 0) {
                         usleep((int) ($remaining * 1_000_000));
                     }
-                    return;
+                    return true;
                 }
             }
-            // Fallback: wait for clip with minimal buffer
             $end = microtime(true) + $duration + 0.3;
             while (microtime(true) < $end && $this->running && !$this->skipCurrent) {
                 $this->checkSignals();
                 usleep(100_000);
             }
-            return;
+            return false;
         }
 
-        // DLNA/UPnP path — device takes 0.5–2 s to transition STOPPED→PLAYING after Play is sent.
-        // Polling isPlaying() immediately returns false (race condition) and the loop exits before
-        // the clip starts, so playTrack() runs while the clip hasn't played yet.
-        // Use the known clip duration instead — the same approach as the Sonos API path above.
         $duration = $this->tts->getDuration($url);
         $io->writeln(sprintf('<comment>DJ clip via DLNA/UPnP: %s (%.1fs)</comment>', $url, $duration));
 
@@ -1128,6 +1116,7 @@ class RadioStartCommand extends Command
         } finally {
             $this->restoreVolume($origVol);
         }
+        return false;
     }
 
     private function boostVolume(int $boost = 10): ?int
