@@ -925,7 +925,11 @@
                             const dataList = [...area.querySelectorAll('ol.ranking-widget-list')]
                                 .find(ol => !ol.querySelector('.ranking-widget-list-header'));
                             if (dataList) {
-                                const medallions = ['\u{1F947}', '\u{1F948}', '\u{1F949}'];
+                                const medals = [
+                                    '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" style="vertical-align:middle"><circle cx="12" cy="12" r="10" fill="#ffd700" stroke="#b8860b" stroke-width="1"/><text x="12" y="16" text-anchor="middle" font-size="11" font-weight="bold" fill="#8b6914">1</text></svg>',
+                                    '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" style="vertical-align:middle"><circle cx="12" cy="12" r="10" fill="#c0c0c0" stroke="#888" stroke-width="1"/><text x="12" y="16" text-anchor="middle" font-size="11" font-weight="bold" fill="#555">2</text></svg>',
+                                    '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" style="vertical-align:middle"><circle cx="12" cy="12" r="10" fill="#cd7f32" stroke="#8b5a2b" stroke-width="1"/><text x="12" y="16" text-anchor="middle" font-size="11" font-weight="bold" fill="#5a3a1a">3</text></svg>',
+                                ];
                                 const topItems = [];
                                 for (let i = 0; i < 3; i++) {
                                     const li = dataList.children[i];
@@ -952,7 +956,7 @@
                                         div.className = 'ranking-podium-item ' + classes[col];
                                         div.innerHTML =
                                             '<div class="podium-step">' +
-                                                '<div class="podium-crown">' + medallions[idx] + '</div>' +
+                                                '<div class="podium-crown">' + medals[idx] + '</div>' +
                                                 (item.imgSrc ? '<img class="podium-img" src="' + item.imgSrc + '" alt="' + item.name + '">' : '') +
                                                 '<div class="podium-name">' + item.name + '</div>' +
                                                 '<div class="podium-score">' + item.score + '</div>' +
