@@ -51,7 +51,10 @@ class RadioStartCommand extends Command
     private array $pendingBirthdays = [];
 
     private int $tracksSinceDj   = 0;
-    private int $djEveryNTracks  = 2; // randomised each time
+    private int $djEveryNTracks  = 2;
+
+    private int $tracksSinceCommercial = 10; // start with a commercial sooner
+    private int $commercialsEveryNTracks = 4; // randomised each time
 
     // Built in constructor so WEATHER_HOUR can be injected: [hour, day-of-week, type]
     private array $timeEvents;
@@ -459,6 +462,12 @@ class RadioStartCommand extends Command
 
             if (!$this->running) {
                 break;
+            }
+
+            $this->tracksSinceCommercial++;
+            if ($this->tracksSinceCommercial >= $this->commercialsEveryNTracks && $nextTrack && $this->hasCommercials()) {
+                $this->playCommercialBreak($io);
+                $this->tracksSinceCommercial = 0;
             }
         }
 
@@ -1061,6 +1070,74 @@ class RadioStartCommand extends Command
         } catch (\Throwable $e) {
             $io->warning('Listener note playback failed: ' . $e->getMessage());
         }
+    }
+
+    private function hasCommercials(): bool
+    {
+        $dir = $this->projectDir . '/public/sounds/commercials';
+        return is_dir($dir) && count(glob($dir . '/*.mp3')) > 0;
+    }
+
+    private function pickCommercial(): ?string
+    {
+        $files = glob($this->projectDir . '/public/sounds/commercials/*.mp3');
+        if (empty($files)) return null;
+        return $files[array_rand($files)];
+    }
+
+    private function playCommercialBreak(SymfonyStyle $io): void
+    {
+        $file = $this->pickCommercial();
+        if (!$file) return;
+
+        $basename = basename($file);
+        $url      = rtrim($this->tts->getServerBaseUrl(), '/') . '/sounds/commercials/' . $basename;
+        $duration = $this->tts->getFileDuration($file);
+        $io->writeln(sprintf('<info>Commercial break:</info> %s (%.1fs)', $basename, $duration));
+
+        if (!$this->useSonosForDjClips) {
+            $this->radioState->setTrack('Commercial', 'SRS FM', (int) ($duration * 1000));
+            $this->radioState->setDjClip($url);
+            $end = microtime(true) + $duration + 0.3;
+            while (microtime(true) < $end && $this->running && !$this->skipCurrent) {
+                $this->checkSignals();
+                usleep(200_000);
+            }
+            $this->radioState->clearDjClip();
+            $this->skipCurrent = false;
+            return;
+        }
+
+        // Sonos API path — use playAudioClip for the commercial
+        if ($this->sonosApi->getGroupId()) {
+            $groupVol = $this->sonosApi->getGroupVolume() ?? 40;
+            $clipVol  = min(100, $groupVol + 10);
+            $this->sonosApi->playAudioClip($url, $clipVol);
+            $end = microtime(true) + $duration + 0.3;
+            while (microtime(true) < $end && $this->running && !$this->skipCurrent) {
+                $this->checkSignals();
+                usleep(200_000);
+            }
+            $this->skipCurrent = false;
+            return;
+        }
+
+        // DLNA/UPnP path
+        $origVol = $this->boostVolume();
+        try {
+            $this->sonos->playHttpClip($url);
+            $end = microtime(true) + $duration + 0.5;
+            while (microtime(true) < $end && $this->running && !$this->skipCurrent) {
+                $this->checkSignals();
+                usleep(200_000);
+            }
+            if ($this->skipCurrent) {
+                $this->sonos->stop();
+            }
+        } finally {
+            $this->restoreVolume($origVol);
+        }
+        $this->skipCurrent = false;
     }
 
     private function playDjClipViaSonos(string $url, SymfonyStyle $io, ?array $nextTrack = null): bool
