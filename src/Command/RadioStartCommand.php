@@ -331,7 +331,10 @@ class RadioStartCommand extends Command
                         $this->playDjClipViaSonos($nextDjUrl, $io, $track);
                         if (!$this->skipCurrent) {
                             $this->em->persist(new DjAnnouncement($nextDjText, $nextDjUrl, $nextDjType));
-                            $this->em->flush();
+                            // Track was pre-loaded during the clip — skip playTrack() to avoid restarting it
+                            if ($djDurationMs > 2000) {
+                                $wasPreQueued = true;
+                            }
                         }
                     } catch (\Throwable $e) {
                         $io->warning('DJ afspelen mislukt: ' . $e->getMessage());
@@ -1396,10 +1399,9 @@ class RadioStartCommand extends Command
 
     private function waitForTrackToEnd(SymfonyStyle $io, ?array $nextTrack = null, bool &$preQueued = false, ?callable $djCallback = null): void
     {
-        sleep(5);
-
         $djCallbackFired = false;
-        $emptyRetries    = 0;
+        $wasPlaying      = false;
+        $graceRetries    = 0;
 
         while ($this->running && !$this->skipCurrent) {
             $this->checkSignals();
@@ -1410,22 +1412,28 @@ class RadioStartCommand extends Command
 
             if (file_exists($this->projectDir . '/var/jira-alarm.json')) {
                 $this->handleJiraAlarm($io);
-                $preQueued = false; // siren interrupted the pre-queue, start next track explicitly
-                sleep(3);          // give Sonos a moment to report playing state
+                $preQueued = false;
+                sleep(3);
             }
 
             try {
                 if ($this->playbackMethod === 'spotify_connect') {
                     $playback = $this->spotify->getCurrentPlayback();
                     if (empty($playback) || (!$playback['is_playing'] && !$this->paused)) {
-                        $emptyRetries++;
-                        if ($emptyRetries > 12) { // ~60s grace period (5s initial + 12 × 5s retry)
+                        if (!$wasPlaying) {
+                            sleep(2);
+                            $wasPlaying = true;
+                            continue;
+                        }
+                        $graceRetries++;
+                        if ($graceRetries > 2) {
                             break;
                         }
-                        sleep(5);
+                        usleep(1_000_000);
                         continue;
                     }
-                    $emptyRetries = 0;
+                    $wasPlaying = true;
+                    $graceRetries = 0;
                     if (isset($playback['volume_percent'])) {
                         $this->lastSpotifyVolume = $playback['volume_percent'];
                     }
@@ -1433,34 +1441,44 @@ class RadioStartCommand extends Command
                 } elseif ($this->playbackMethod === 'sonos_api') {
                     $playback = $this->sonosApi->getPlayback();
                     if (empty($playback) || (!$playback['is_playing'] && !$this->paused)) {
-                        $emptyRetries++;
-                        if ($emptyRetries > 8) { // ~45s grace period
+                        if (!$wasPlaying) {
+                            sleep(2);
+                            $wasPlaying = true;
+                            continue;
+                        }
+                        $graceRetries++;
+                        if ($graceRetries > 2) {
                             break;
                         }
-                        sleep(5);
+                        usleep(1_000_000);
                         continue;
                     }
-                    $emptyRetries = 0;
+                    $wasPlaying = true;
+                    $graceRetries = 0;
                     $remaining = ($playback['duration_ms'] - $playback['progress_ms']) / 1000;
                 } else {
                     if (!$this->sonos->isPlaying() && !$this->paused) {
-                        $emptyRetries++;
-                        if ($emptyRetries > 8) {
+                        if (!$wasPlaying) {
+                            sleep(2);
+                            $wasPlaying = true;
+                            continue;
+                        }
+                        $graceRetries++;
+                        if ($graceRetries > 2) {
                             break;
                         }
-                        sleep(5);
+                        usleep(1_000_000);
                         continue;
                     }
-                    $emptyRetries = 0;
+                    $wasPlaying = true;
+                    $graceRetries = 0;
                     $pos = $this->sonos->getPositionInfo();
-                    // duration=0 means metadata not yet loaded — keep waiting
                     if ($pos['duration'] === 0) {
-                        sleep(2);
+                        usleep(500_000);
                         continue;
                     }
                     $remaining = max(0, $pos['duration'] - $pos['position']);
 
-                    // Pre-queue next track on Sonos so it can buffer while current song finishes
                     if (!$preQueued && $nextTrack !== null && $remaining <= 30) {
                         try {
                             $this->sonos->setNextTrack($nextTrack['id'], $nextTrack['title'], $nextTrack['artist']);
@@ -1470,18 +1488,12 @@ class RadioStartCommand extends Command
                     }
                 }
 
-                // Fire DJ pregeneration at the 90-second mark so it runs during the track
-                // rather than blocking before waitForTrackToEnd starts.
-                if (!$djCallbackFired && $djCallback !== null && $remaining <= 90) {
+                if (!$djCallbackFired && $djCallback !== null && isset($remaining) && $remaining <= 90) {
                     $djCallbackFired = true;
                     ($djCallback)();
                 }
 
-                if ($remaining <= 3 && !$this->paused) {
-                    // Wait for Sonos to fully stop before returning, preventing the
-                    // DJ clip (or next track) from overlapping with the track's tail.
-                    // Only applies to DLNA/UPnP — Spotify Connect and Sonos API paths
-                    // already break via their own is_playing checks before reaching here.
+                if (isset($remaining) && $remaining <= 3 && !$this->paused) {
                     if ($this->playbackMethod === 'upnp') {
                         $confirmEnd = microtime(true) + 1;
                         while ($this->sonos->isPlaying() && microtime(true) < $confirmEnd) {
@@ -1491,15 +1503,15 @@ class RadioStartCommand extends Command
                     break;
                 }
 
-                sleep(min(10, max(1, (int) $remaining - 5)));
+                $sleep = isset($remaining) && $remaining > 3 ? min(3, max(1, (int) $remaining - 2)) : 1;
+                usleep((int) ($sleep * 1_000_000));
             } catch (\Throwable $e) {
                 $io->warning('Playback check mislukt: ' . $e->getMessage());
-                $emptyRetries++;
-                if ($emptyRetries > 4) {
-                    sleep(10);
+                $graceRetries++;
+                if ($graceRetries > 2) {
                     break;
                 }
-                sleep(5);
+                usleep(1_000_000);
             }
         }
 
