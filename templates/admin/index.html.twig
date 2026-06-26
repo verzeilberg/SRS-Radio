@@ -594,19 +594,6 @@
         td { padding: .65rem 1rem; border-bottom: 1px solid #1a1a2e; }
         tr:last-child td { border-bottom: none; }
 
-        .role-pill {
-            display: inline-block;
-            padding: .15rem .55rem;
-            border-radius: 20px;
-            font-size: .7rem;
-            font-weight: 700;
-            letter-spacing: .06em;
-            text-transform: uppercase;
-            margin-right: .2rem;
-        }
-        .role-admin { background: rgba(180,120,255,.2); color: #b47fff; }
-        .role-user  { background: rgba(100,181,246,.15); color: #64b5f6; }
-
         code {
             background: #0a0a1a;
             border: 1px solid #2a2a4a;
@@ -716,31 +703,6 @@
         }
         .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
         .toast.error { border-color: rgba(239,68,68,.4); color: #fca5a5; }
-
-        /* ── Inline name editor ── */
-        .user-name-input {
-            background: #0a0a1a;
-            border: 1px solid #5b21b6;
-            border-radius: 5px;
-            color: #fff;
-            font-size: .875rem;
-            font-family: 'Lato', sans-serif;
-            padding: .2rem .5rem;
-            width: 140px;
-            outline: none;
-        }
-
-        .btn-edit-name {
-            background: none;
-            border: none;
-            color: #4a3a6a;
-            cursor: pointer;
-            font-size: .85rem;
-            padding: 0 .3rem;
-            transition: color .15s;
-            vertical-align: middle;
-        }
-        .btn-edit-name:hover { color: #b47fff; }
 
         /* ── Playlist pool ── */
         .pool-list {
@@ -948,6 +910,7 @@
     <header>
         <span class="brand">🛡️ SRS RADIO <span class="badge">Admin</span></span>
         <nav>
+            <a href="{{ path('app_admin_users') }}">Users</a>
             <a href="{{ path('app_radio') }}">Radio</a>
             <a href="{{ path('setup') }}">Setup</a>
             <a href="{{ path('app_admin_logout') }}" class="danger">Sign out</a>
@@ -1221,44 +1184,6 @@
                 </div>
                 <button class="btn-submit" onclick="saveSoccerDates()">Save dates</button>
             </div>
-        </div>
-
-        {# ── Users ── #}
-        <div class="section-card">
-            <h3>Users ({{ users|length }})</h3>
-            {% if users is empty %}
-                <p class="hint">No users. Create one: <code>bin/console app:create-user</code></p>
-            {% else %}
-                <table>
-                    <thead>
-                        <tr><th>#</th><th>Name</th><th>Email</th><th>Roles</th></tr>
-                    </thead>
-                    <tbody>
-                        {% for user in users %}
-                        <tr>
-                            <td>{{ user.id }}</td>
-                            <td>
-                                <span class="user-name-display" id="name-display-{{ user.id }}">{{ user.displayName }}</span>
-                                <input class="user-name-input" id="name-input-{{ user.id }}"
-                                       type="text" value="{{ user.name ?? '' }}"
-                                       placeholder="{{ user.displayName }}"
-                                       style="display:none"
-                                       data-user-id="{{ user.id }}">
-                                <button class="btn-edit-name" onclick="editName({{ user.id }})" id="btn-edit-{{ user.id }}">✎</button>
-                            </td>
-                            <td>{{ user.email }}</td>
-                            <td>
-                                {% for role in user.roles %}
-                                    <span class="role-pill {{ role == 'ROLE_ADMIN' ? 'role-admin' : 'role-user' }}">
-                                        {{ role|replace({'ROLE_': ''}) }}
-                                    </span>
-                                {% endfor %}
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            {% endif %}
         </div>
 
     </main>
@@ -1593,54 +1518,6 @@
         setInterval(pollLog, 4000);
 
         /* ── Inline name editor ── */
-        function editName(id) {
-            const display = document.getElementById('name-display-' + id);
-            const input   = document.getElementById('name-input-' + id);
-            const btn     = document.getElementById('btn-edit-' + id);
-
-            display.style.display = 'none';
-            input.style.display   = 'inline-block';
-            btn.textContent       = '✔';
-            btn.onclick           = () => saveName(id);
-            input.focus();
-            input.select();
-
-            input.addEventListener('keydown', function handler(e) {
-                if (e.key === 'Enter')  { saveName(id); input.removeEventListener('keydown', handler); }
-                if (e.key === 'Escape') { cancelName(id); input.removeEventListener('keydown', handler); }
-            });
-        }
-
-        function cancelName(id) {
-            document.getElementById('name-display-' + id).style.display = '';
-            document.getElementById('name-input-' + id).style.display   = 'none';
-            const btn = document.getElementById('btn-edit-' + id);
-            btn.textContent = '✎';
-            btn.onclick     = () => editName(id);
-        }
-
-        async function saveName(id) {
-            const input = document.getElementById('name-input-' + id);
-            const name  = input.value.trim();
-            try {
-                const res  = await fetch('{{ path('app_admin_user_name', {'id': '__ID__'}) }}'.replace('__ID__', id), {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name }),
-                });
-                const data = await res.json();
-                if (res.ok) {
-                    document.getElementById('name-display-' + id).textContent = data.name;
-                    showToast('Name updated.');
-                } else {
-                    showToast('Failed to save.', true);
-                }
-            } catch (_) {
-                showToast('Request failed.', true);
-            }
-            cancelName(id);
-        }
-
         /* ── Song requests ── */
         function reqTimeAgo(ts) {
             const diff = Math.floor(Date.now() / 1000) - ts;

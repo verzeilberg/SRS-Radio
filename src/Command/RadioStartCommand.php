@@ -328,7 +328,7 @@ class RadioStartCommand extends Command
                     $djDurationMs = (int) ($this->tts->getDuration($nextDjUrl) * 1000);
                     $this->radioState->setTrack('DJ Sander', 'SRS FM', $djDurationMs);
                     try {
-                        $this->playDjClipViaSonos($nextDjUrl, $io);
+                        $this->playDjClipViaSonos($nextDjUrl, $io, $track);
                         if (!$this->skipCurrent) {
                             $this->em->persist(new DjAnnouncement($nextDjText, $nextDjUrl, $nextDjType));
                             $this->em->flush();
@@ -1061,7 +1061,7 @@ class RadioStartCommand extends Command
         }
     }
 
-    private function playDjClipViaSonos(string $url, SymfonyStyle $io): void
+    private function playDjClipViaSonos(string $url, SymfonyStyle $io, ?array $nextTrack = null): void
     {
         if ($this->sonosApi->getGroupId()) {
             // Sonos Cloud API: overlays the clip on the active session without interrupting
@@ -1073,11 +1073,33 @@ class RadioStartCommand extends Command
             $io->writeln($ok ? '<comment>audioClip OK</comment>' : '<error>audioClip FAILED</error>');
 
             $duration = $this->tts->getDuration($url);
-            $io->writeln(sprintf('<comment>Waiting %.1fs for clip to finish</comment>', $duration));
-            $end = microtime(true) + $duration + 1.0;
+            // Pre-load the next track at 80% of the clip duration so it's ready the
+            // moment the clip finishes. The clip plays as an overlay — loading the
+            // stream URL replaces the queue underneath without interrupting the clip.
+            if ($nextTrack !== null && $duration > 2) {
+                $preloadAt = microtime(true) + ($duration * 0.8);
+                while (microtime(true) < $preloadAt && $this->running && !$this->skipCurrent) {
+                    $this->checkSignals();
+                    usleep(100_000);
+                }
+                if ($this->running && !$this->skipCurrent) {
+                    try {
+                        $this->sonosApi->playSpotifyTrack($nextTrack['uri'], $nextTrack['title'], $nextTrack['artist']);
+                        $io->writeln('<comment>→ Volgend nummer klaargezet tijdens clip</comment>');
+                    } catch (\Throwable) {}
+                    // Let the clip finish naturally — the track will start right after
+                    $remaining = ($duration * 0.2) + 0.3;
+                    if ($remaining > 0) {
+                        usleep((int) ($remaining * 1_000_000));
+                    }
+                    return;
+                }
+            }
+            // Fallback: wait for clip with minimal buffer
+            $end = microtime(true) + $duration + 0.3;
             while (microtime(true) < $end && $this->running && !$this->skipCurrent) {
                 $this->checkSignals();
-                usleep(300_000);
+                usleep(100_000);
             }
             return;
         }
@@ -1092,10 +1114,10 @@ class RadioStartCommand extends Command
         $origVol = $this->boostVolume();
         try {
             $this->sonos->playHttpClip($url);
-            $end = microtime(true) + $duration + 1.5;
+            $end = microtime(true) + $duration + 0.5;
             while (microtime(true) < $end && $this->running && !$this->skipCurrent) {
                 $this->checkSignals();
-                usleep(300_000);
+                usleep(200_000);
             }
             if ($this->skipCurrent) {
                 $this->sonos->stop();
@@ -1362,10 +1384,10 @@ class RadioStartCommand extends Command
 
         // Wait for the clip duration so the next track doesn't start while DJ is speaking.
         // The browser plays it independently; we don't rely on a browser signal.
-        $end = microtime(true) + $duration + 1.5;
+        $end = microtime(true) + $duration + 0.3;
         while (microtime(true) < $end && $this->running && !$this->skipCurrent) {
             $this->checkSignals();
-            sleep(1);
+            usleep(200_000);
         }
 
         $this->radioState->clearDjClip();
@@ -1456,15 +1478,12 @@ class RadioStartCommand extends Command
                 }
 
                 if ($remaining <= 3 && !$this->paused) {
-                    if (!$preQueued) {
-                        sleep(1);
-                    }
                     // Wait for Sonos to fully stop before returning, preventing the
                     // DJ clip (or next track) from overlapping with the track's tail.
                     // Only applies to DLNA/UPnP — Spotify Connect and Sonos API paths
                     // already break via their own is_playing checks before reaching here.
                     if ($this->playbackMethod === 'upnp') {
-                        $confirmEnd = microtime(true) + 2;
+                        $confirmEnd = microtime(true) + 1;
                         while ($this->sonos->isPlaying() && microtime(true) < $confirmEnd) {
                             usleep(200_000);
                         }

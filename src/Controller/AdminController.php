@@ -43,7 +43,6 @@ class AdminController extends AbstractController
         return $this->render('admin/index.html.twig', [
             'volume'          => $volume,
             'backend'         => $backend,
-            'users'           => $this->userRepository->findAll(),
             'colleagues'      => $this->colleagueRepository->findBy([], ['name' => 'ASC']),
             'existing_images' => $this->scanColleagueImages(),
             'soccer_start'    => $this->getSoccerDate('start'),
@@ -306,6 +305,14 @@ class AdminController extends AbstractController
 
     // ── User management ──────────────────────────────────────────────────────
 
+    #[Route('/users', name: 'app_admin_users')]
+    public function users(): Response
+    {
+        return $this->render('admin/users.html.twig', [
+            'users' => $this->userRepository->findAll(),
+        ]);
+    }
+
     #[Route('/api/user/{id}/name', name: 'app_admin_user_name', methods: ['POST'])]
     public function updateUserName(int $id, Request $request, EntityManagerInterface $em): JsonResponse
     {
@@ -320,6 +327,48 @@ class AdminController extends AbstractController
         $em->flush();
 
         return new JsonResponse(['ok' => true, 'name' => $user->getDisplayName()]);
+    }
+
+    #[Route('/api/user/{id}/delete', name: 'app_admin_user_delete', methods: ['POST'])]
+    public function deleteUser(int $id, EntityManagerInterface $em): JsonResponse
+    {
+        $user = $this->userRepository->find($id);
+        if (!$user) {
+            return new JsonResponse(['error' => 'Not found'], 404);
+        }
+
+        if ($user === $this->getUser()) {
+            return new JsonResponse(['error' => 'Cannot delete yourself'], 400);
+        }
+
+        $em->remove($user);
+        $em->flush();
+
+        return new JsonResponse(['ok' => true]);
+    }
+
+    #[Route('/api/user/{id}/toggle-role', name: 'app_admin_user_toggle_role', methods: ['POST'])]
+    public function toggleUserRole(int $id, EntityManagerInterface $em): JsonResponse
+    {
+        $user = $this->userRepository->find($id);
+        if (!$user) {
+            return new JsonResponse(['error' => 'Not found'], 404);
+        }
+
+        if ($user === $this->getUser()) {
+            return new JsonResponse(['error' => 'Cannot change your own role'], 400);
+        }
+
+        $roles = $user->getRoles();
+        if (in_array('ROLE_ADMIN', $roles, true)) {
+            $roles = array_values(array_filter($roles, fn($r) => $r !== 'ROLE_ADMIN'));
+        } else {
+            $roles[] = 'ROLE_ADMIN';
+        }
+        $user->setRoles($roles);
+        $em->flush();
+
+        return new JsonResponse(['ok' => true, 'roles' => $user->getRoles()]);
     }
 
     // ── Song requests ────────────────────────────────────────────────────────

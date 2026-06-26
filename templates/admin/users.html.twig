@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SRS Radio – Manage users</title>
+    <link href="https://fonts.googleapis.com/css2?family=Raleway:wght@300;400;700;900&family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        html, body {
+            min-height: 100%;
+            font-family: 'Lato', sans-serif;
+            background: #0d0d1a;
+            color: #fff;
+        }
+
+        header {
+            background: #14142b;
+            border-bottom: 1px solid #2a2a4a;
+            padding: 1rem 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .brand {
+            font-family: 'Raleway', sans-serif;
+            font-weight: 700;
+            font-size: 1.1rem;
+            letter-spacing: .1em;
+            color: #b47fff;
+            display: flex;
+            align-items: center;
+            gap: .6rem;
+        }
+
+        .badge {
+            display: inline-block;
+            background: rgba(180,120,255,.15);
+            border: 1px solid rgba(180,120,255,.3);
+            border-radius: 20px;
+            padding: .15rem .6rem;
+            font-size: .65rem;
+            font-weight: 700;
+            letter-spacing: .12em;
+            text-transform: uppercase;
+            color: #b47fff;
+        }
+
+        nav a {
+            color: #6b5a8a;
+            text-decoration: none;
+            font-size: .85rem;
+            margin-left: 1.5rem;
+            transition: color .2s;
+        }
+        nav a:hover { color: #b47fff; }
+        nav a.danger { color: #6b3a4a; }
+        nav a.danger:hover { color: #f87171; }
+
+        main {
+            padding: 2.5rem 2rem;
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+
+        h2 {
+            font-family: 'Raleway', sans-serif;
+            font-size: 1.4rem;
+            font-weight: 700;
+            letter-spacing: .05em;
+            margin-bottom: 1.75rem;
+            color: #b47fff;
+        }
+
+        .flash {
+            padding: .75rem 1rem;
+            border-radius: 8px;
+            margin-bottom: 1.25rem;
+            font-size: .875rem;
+        }
+        .flash.success { background: rgba(34,197,94,.1); border: 1px solid rgba(34,197,94,.3); color: #86efac; }
+        .flash.error   { background: rgba(239,68,68,.1);  border: 1px solid rgba(239,68,68,.3);  color: #fca5a5; }
+
+        .section-card {
+            background: #14142b;
+            border: 1px solid #2a2a4a;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 2rem;
+        }
+
+        .section-card h3 {
+            font-family: 'Raleway', sans-serif;
+            font-size: .75rem;
+            font-weight: 700;
+            letter-spacing: .1em;
+            text-transform: uppercase;
+            padding: .85rem 1rem;
+            border-bottom: 1px solid #2a2a4a;
+            color: #6b5a8a;
+        }
+
+        table { width: 100%; border-collapse: collapse; font-size: .875rem; }
+        th {
+            text-align: left;
+            padding: .6rem 1rem;
+            font-size: .7rem;
+            font-weight: 700;
+            letter-spacing: .08em;
+            text-transform: uppercase;
+            color: #4a3a6a;
+            border-bottom: 1px solid #2a2a4a;
+        }
+        td { padding: .65rem 1rem; border-bottom: 1px solid #1a1a2e; vertical-align: middle; }
+        tr:last-child td { border-bottom: none; }
+
+        .role-pill {
+            display: inline-block;
+            padding: .15rem .55rem;
+            border-radius: 20px;
+            font-size: .7rem;
+            font-weight: 700;
+            letter-spacing: .06em;
+            text-transform: uppercase;
+            margin-right: .2rem;
+        }
+        .role-admin { background: rgba(180,120,255,.2); color: #b47fff; }
+        .role-user  { background: rgba(100,181,246,.15); color: #64b5f6; }
+
+        .btn-icon {
+            background: transparent;
+            border: 1px solid #2a2a4a;
+            border-radius: 6px;
+            color: #6b5a8a;
+            font-family: 'Lato', sans-serif;
+            font-size: .78rem;
+            padding: .3rem .65rem;
+            cursor: pointer;
+            transition: background .2s, color .2s, border-color .2s;
+            margin-right: .35rem;
+        }
+        .btn-icon:hover { color: #b47fff; border-color: #5b21b6; }
+        .btn-icon.danger:hover { color: #f87171; border-color: #991b1b; background: rgba(239,68,68,.1); }
+        .btn-icon:disabled { opacity: .4; cursor: not-allowed; }
+
+        .toast {
+            position: fixed;
+            bottom: 1.5rem;
+            left: 50%;
+            transform: translateX(-50%) translateY(10px);
+            background: #14142b;
+            border: 1px solid #2a2a4a;
+            border-radius: 8px;
+            padding: .6rem 1.25rem;
+            font-size: .85rem;
+            color: #b47fff;
+            opacity: 0;
+            transition: opacity .3s, transform .3s;
+            pointer-events: none;
+            white-space: nowrap;
+            z-index: 100;
+        }
+        .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+        .toast.error { border-color: rgba(239,68,68,.4); color: #fca5a5; }
+    </style>
+</head>
+<body>
+    <header>
+        <span class="brand">🛡️ SRS RADIO <span class="badge">Admin</span></span>
+        <nav>
+            <a href="{{ path('app_admin_dashboard') }}">Dashboard</a>
+            <a href="{{ path('app_radio') }}">Radio</a>
+            <a href="{{ path('setup') }}">Setup</a>
+            <a href="{{ path('app_admin_logout') }}" class="danger">Sign out</a>
+        </nav>
+    </header>
+
+    <main>
+        <h2>Manage users</h2>
+
+        <div class="section-card">
+            <h3>Users ({{ users|length }})</h3>
+            {% if users is empty %}
+                <p style="padding:1rem;color:#4a3a6a;font-size:.875rem;">No users yet.</p>
+            {% else %}
+                <table>
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Roles</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in users %}
+                        <tr id="user-row-{{ user.id }}">
+                            <td>{{ user.id }}</td>
+                            <td>{{ user.displayName }}</td>
+                            <td>{{ user.email }}</td>
+                            <td>
+                                {% for role in user.roles %}
+                                    <span class="role-pill {{ role == 'ROLE_ADMIN' ? 'role-admin' : 'role-user' }}">
+                                        {{ role|replace({'ROLE_': ''}) }}
+                                    </span>
+                                {% endfor %}
+                            </td>
+                            <td>
+                                <button class="btn-icon" onclick="toggleRole({{ user.id }})" id="btn-role-{{ user.id }}">
+                                    Toggle admin
+                                </button>
+                                <button class="btn-icon danger" onclick="deleteUser({{ user.id }})" id="btn-delete-{{ user.id }}">
+                                    Delete
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% endif %}
+        </div>
+    </main>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        function toast(msg, error) {
+            const el = document.getElementById('toast');
+            el.textContent = msg;
+            el.className = 'toast show' + (error ? ' error' : '');
+            setTimeout(() => el.classList.remove('show'), 2500);
+        }
+
+        async function toggleRole(id) {
+            const btn = document.getElementById('btn-role-' + id);
+            btn.disabled = true;
+            try {
+                const res = await fetch('{{ path('app_admin_user_toggle_role', {'id': '__ID__'}) }}'.replace('__ID__', id), { method: 'POST' });
+                const data = await res.json();
+                if (data.error) { toast(data.error, true); return; }
+                location.reload();
+            } catch {
+                toast('Failed to toggle role', true);
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        async function deleteUser(id) {
+            if (!confirm('Delete this user? This cannot be undone.')) return;
+            const btn = document.getElementById('btn-delete-' + id);
+            btn.disabled = true;
+            try {
+                const res = await fetch('{{ path('app_admin_user_delete', {'id': '__ID__'}) }}'.replace('__ID__', id), { method: 'POST' });
+                const data = await res.json();
+                if (data.error) { toast(data.error, true); btn.disabled = false; return; }
+                const row = document.getElementById('user-row-' + id);
+                row.style.transition = 'opacity .3s';
+                row.style.opacity = '0';
+                setTimeout(() => row.remove(), 300);
+                toast('User deleted');
+            } catch {
+                toast('Failed to delete user', true);
+                btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>

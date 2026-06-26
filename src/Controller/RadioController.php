@@ -118,7 +118,7 @@ class RadioController extends AbstractController
             } catch (\Throwable) {}
         }
 
-        return new JsonResponse([
+        $response = new JsonResponse([
             'track'             => $track,
             'artist'            => $artist,
             'image'             => $state['track_image'] ?? $playback['album_image'] ?? null,
@@ -139,6 +139,12 @@ class RadioController extends AbstractController
             'alarm_key'         => $state['alarm_key'] ?? null,
             'alarm_summary'     => $state['alarm_summary'] ?? null,
         ]);
+
+        $response->headers->set('Cache-Control', 'no-cache, no-store, must-revalidate');
+        $response->headers->set('Pragma', 'no-cache');
+        $response->headers->set('Expires', '0');
+
+        return $response;
     }
 
     #[Route('/api/dj-clip-done', methods: ['POST'])]
