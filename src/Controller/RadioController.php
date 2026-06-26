@@ -5,6 +5,7 @@ use App\Entity\SonosToken;
 use App\Entity\SpotifyToken;
 use App\Repository\TrackRepository;
 use App\Service\JiraService;
+use App\Service\NewsService;
 use App\Service\RadioStateService;
 use App\Service\SonosService;
 use App\Service\SpotifyService;
@@ -23,6 +24,7 @@ class RadioController extends AbstractController
         private RadioStateService $radioState,
         private EntityManagerInterface $em,
         private JiraService $jiraService,
+        private NewsService $newsService,
         private string $jiraAlarmAccount,
         private string $jiraAlarmLabels,
         private string $projectDir,
@@ -152,5 +154,12 @@ class RadioController extends AbstractController
     {
         $this->radioState->markDjClipDone();
         return new JsonResponse(['ok' => true]);
+    }
+
+    #[Route('/api/news-headlines', methods: ['GET'])]
+    public function newsHeadlines(): JsonResponse
+    {
+        $headlines = $this->newsService->getHeadlines(20);
+        return new JsonResponse($headlines);
     }
 }

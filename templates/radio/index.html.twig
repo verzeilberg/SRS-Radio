@@ -15,9 +15,68 @@
         background: #0a1929;
     }
 
+    /* ── News ticker ── */
+    .ticker-wrap {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 2.2rem;
+        background: rgba(10,25,41,.92);
+        border-bottom: 1px solid rgba(46,163,242,.2);
+        overflow: hidden;
+        z-index: 100;
+        display: flex;
+        align-items: center;
+    }
+
+    .ticker-track {
+        flex: 1;
+        overflow: hidden;
+        position: relative;
+        height: 100%;
+    }
+
+    .ticker-items {
+        display: flex;
+        gap: 0;
+        position: absolute;
+        white-space: nowrap;
+        will-change: transform;
+        animation: ticker-scroll 60s linear infinite;
+        height: 100%;
+        align-items: center;
+    }
+
+    .ticker-item {
+        display: inline-flex;
+        align-items: center;
+        gap: .75rem;
+        padding: 0 2.5rem;
+        font-size: .78rem;
+        color: #88bbdd;
+        letter-spacing: .02em;
+    }
+
+    .ticker-item::before {
+        content: '•';
+        color: #2ea3f2;
+        font-size: .6rem;
+    }
+
+    .ticker-item:first-child::before {
+        display: none;
+    }
+
+    @keyframes ticker-scroll {
+        0%   { transform: translateX(0); }
+        100% { transform: translateX(-50%); }
+    }
+
     .split {
         display: flex;
         height: 100vh;
+        padding-top: 2.2rem;
     }
 
     .panel-left {
@@ -690,6 +749,11 @@
 {% endblock %}
 
 {% block body %}
+<div class="ticker-wrap" id="ticker-wrap" style="display:none">
+    <div class="ticker-track">
+        <div class="ticker-items" id="ticker-items"></div>
+    </div>
+</div>
 <div class="split">
 
     <div class="panel-left">
@@ -1444,6 +1508,30 @@ async function pollJira() {
 
 setInterval(pollJira, 5000);
 pollJira();
+
+// ── News ticker ─────────────────────────────────────────────────────────
+async function pollNews() {
+    try {
+        const res  = await fetch('/api/news-headlines', { cache: 'no-cache' });
+        const data = await res.json();
+        const wrap = document.getElementById('ticker-wrap');
+        const container = document.getElementById('ticker-items');
+
+        if (!data || data.length === 0) {
+            wrap.style.display = 'none';
+            return;
+        }
+
+        wrap.style.display = 'flex';
+
+        // Duplicate items for seamless infinite scroll
+        const items = [...data, ...data].map(h => `<span class="ticker-item">${h}</span>`).join('');
+        container.innerHTML = items;
+    } catch {}
+}
+
+setInterval(pollNews, 120000);
+pollNews();
 // ──────────────────────────────────────────────────────────────────────────
 </script>
 {% endblock %}
