@@ -517,6 +517,7 @@ class RadioStartCommand extends Command
             {
                 parent::doWrite($message, $newline);
                 fwrite($this->fileHandle, preg_replace('/\x1b\[[0-9;]*m/', '', $message) . ($newline ? PHP_EOL : ''));
+                fflush($this->fileHandle);
             }
         };
     }
@@ -1146,12 +1147,14 @@ class RadioStartCommand extends Command
             $groupVol = $this->sonosApi->getGroupVolume() ?? 40;
             $clipVol  = min(100, $groupVol + 10);
             $io->writeln(sprintf('<comment>DJ clip via Sonos API (vol %d → clip %d): %s</comment>', $groupVol, $clipVol, $url));
-            $ok = $this->sonosApi->playAudioClip($url, $clipVol);
-            $io->writeln($ok ? '<comment>audioClip OK</comment>' : '<error>audioClip FAILED</error>');
+            $clipStarted = $this->sonosApi->playAudioClip($url, $clipVol);
+            $io->writeln($clipStarted ? '<comment>audioClip OK</comment>' : '<error>audioClip FAILED</error>');
 
             $duration = $this->tts->getDuration($url);
-            if ($nextTrack !== null && $duration > 2) {
-                $preloadAt = microtime(true) + ($duration * 0.8);
+            if ($clipStarted && $nextTrack !== null && $duration > 2) {
+                // Pre-load the next track near the end of the clip so the
+                // transition is seamless but the DJ voice finishes first.
+                $preloadAt = microtime(true) + ($duration * 0.95);
                 while (microtime(true) < $preloadAt && $this->running && !$this->skipCurrent) {
                     $this->checkSignals();
                     usleep(100_000);
@@ -1161,7 +1164,7 @@ class RadioStartCommand extends Command
                         $this->sonosApi->playSpotifyTrack($nextTrack['uri'], $nextTrack['title'], $nextTrack['artist']);
                         $io->writeln('<comment>→ Volgend nummer klaargezet tijdens clip</comment>');
                     } catch (\Throwable) {}
-                    $remaining = ($duration * 0.2) + 0.3;
+                    $remaining = ($duration * 0.05) + 0.5;
                     if ($remaining > 0) {
                         usleep((int) ($remaining * 1_000_000));
                     }
@@ -1560,11 +1563,21 @@ class RadioStartCommand extends Command
                 }
 
                 if (isset($remaining) && $remaining <= 3 && !$this->paused) {
-                    if ($this->playbackMethod === 'upnp') {
-                        $confirmEnd = microtime(true) + 1;
-                        while ($this->sonos->isPlaying() && microtime(true) < $confirmEnd) {
-                            usleep(200_000);
+                    // Confirm the track has actually stopped to avoid the DJ clip
+                    // overlapping the tail of the current song.
+                    $confirmEnd = microtime(true) + 3;
+                    while (microtime(true) < $confirmEnd && $this->running && !$this->skipCurrent) {
+                        try {
+                            $stillPlaying = match ($this->playbackMethod) {
+                                'spotify_connect' => (bool) ($this->spotify->getCurrentPlayback()['is_playing'] ?? false),
+                                'sonos_api'       => (bool) ($this->sonosApi->getPlayback()['is_playing'] ?? false),
+                                default           => $this->sonos->isPlaying(),
+                            };
+                            if (!$stillPlaying) break;
+                        } catch (\Throwable) {
+                            break;
                         }
+                        usleep(200_000);
                     }
                     break;
                 }

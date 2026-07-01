@@ -17,7 +17,9 @@ class RadioStateService
 
     public function setPlaying(): void
     {
-        file_put_contents($this->statePath, json_encode(['status' => 'playing']));
+        $state = $this->getState();
+        $state['status'] = 'playing';
+        file_put_contents($this->statePath, json_encode($state));
     }
 
     public function setTrack(string $title, string $artist, int $durationMs, ?string $image = null): void

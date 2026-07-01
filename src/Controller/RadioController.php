@@ -85,11 +85,10 @@ class RadioController extends AbstractController
     public function nowPlaying(): JsonResponse
     {
         $state  = $this->radioState->getState();
-        $latest = $this->trackRepository->findLatest();
 
         $isIdle = ($state['status'] ?? 'idle') === 'idle';
-        $track  = $isIdle ? '—' : ($state['track_title']  ?? $latest?->getTitle()  ?? '—');
-        $artist = $isIdle ? '—' : ($state['track_artist'] ?? $latest?->getArtist() ?? '—');
+        $track  = $isIdle ? '—' : ($state['track_title']  ?? '—');
+        $artist = $isIdle ? '—' : ($state['track_artist'] ?? '—');
 
         $radioIsPlaying   = $state['status'] === 'playing';
         $playback         = $radioIsPlaying ? ($this->spotifyService->getCurrentPlayback() ?? []) : [];
@@ -124,7 +123,7 @@ class RadioController extends AbstractController
             'track'             => $track,
             'artist'            => $artist,
             'image'             => $state['track_image'] ?? $playback['album_image'] ?? null,
-            'dj_text'           => $latest?->getDjText() ?? '…',
+            'dj_text'           => $isIdle ? null : ($state['dj_text'] ?? null),
             'progress_ms'       => $progressMs,
             'duration_ms'       => $durationMs,
             'is_playing'        => $spotifyIsPlaying || $radioIsPlaying,

@@ -941,9 +941,10 @@
                         return null;
                     }
 
-                    fetch('https://www.wkpooltjes.nl/rankingpoolwidget/61e2c6179a7904cb7504e053a62444d0/127/')
-                        .then((r) => r.text())
-                        .then((h) => {
+                    async function refreshRanking() {
+                        try {
+                            const res  = await fetch('https://www.wkpooltjes.nl/rankingpoolwidget/61e2c6179a7904cb7504e053a62444d0/127/');
+                            const h    = await res.text();
                             const area = document.querySelector('.ranking-widget-fetch-area');
                             area.innerHTML = h;
 
@@ -1012,7 +1013,6 @@
                                 }
                             }
 
-                            // Hide the header row
                             const headerOL = [...area.querySelectorAll('ol.ranking-widget-list')]
                                 .find(ol => ol.querySelector('.ranking-widget-list-header'));
                             if (headerOL) headerOL.style.display = 'none';
@@ -1035,7 +1035,13 @@
                                 document.getElementById('fullpage-logo').classList.remove('active');
                                 document.getElementById('fullpage-ranking').classList.add('active');
                             }
-                        });
+                        } catch (e) {
+                            // ignore fetch/parse errors on refresh
+                        }
+                    }
+
+                    refreshRanking();
+                    setInterval(refreshRanking, 300000);
                 </script>
             </div>
 
