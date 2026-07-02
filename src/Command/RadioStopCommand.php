@@ -15,37 +15,87 @@ class RadioStopCommand extends Command
         $io      = new SymfonyStyle($input, $output);
         $pidFile = RadioStartCommand::pidFile();
 
-        if (!file_exists($pidFile)) {
-            $io->warning('Radio is not running (no PID file found).');
-            return Command::SUCCESS;
-        }
+        $pids = [];
 
-        $pid = (int) trim(file_get_contents($pidFile));
-
-        if ($pid <= 0) {
-            $io->error('PID file is invalid.');
-            return Command::FAILURE;
-        }
-
-        if (!posix_kill($pid, 0)) {
-            $io->warning("Process $pid is no longer running. Cleaning up stale PID file.");
-            @unlink($pidFile);
-            return Command::SUCCESS;
-        }
-
-        $io->writeln("Sending stop signal to radio process (PID $pid)...");
-        posix_kill($pid, SIGTERM);
-
-        // Wait up to 30 seconds for the process to exit
-        for ($i = 0; $i < 30; $i++) {
-            sleep(1);
-            if (!posix_kill($pid, 0)) {
-                $io->success('Radio stopped.');
-                return Command::SUCCESS;
+        // Primary: read the PID file
+        if (file_exists($pidFile)) {
+            $pid = (int) trim(file_get_contents($pidFile));
+            if ($pid > 0 && posix_kill($pid, 0)) {
+                $pids[] = $pid;
+            } else {
+                $io->writeln("Cleaning up stale PID file (process $pid is gone).");
+                @unlink($pidFile);
             }
         }
 
-        $io->error("Process $pid did not stop within 30 seconds.");
+        // Fallback: also look for any radio:start processes via pgrep.
+        // This catches instances running without a PID file.
+        $foundPids = $this->findRadioProcesses();
+        foreach ($foundPids as $foundPid) {
+            if (!in_array($foundPid, $pids, true)) {
+                $pids[] = $foundPid;
+            }
+        }
+
+        if (empty($pids)) {
+            $io->warning('Radio is not running (no PID file or process found).');
+            return Command::SUCCESS;
+        }
+
+        foreach ($pids as $pid) {
+            $io->writeln("Sending stop signal to radio process (PID $pid)...");
+            posix_kill($pid, SIGTERM);
+        }
+
+        // Write the stop flag file as a fallback in case the process doesn't
+        // respond to SIGTERM immediately (e.g. stuck in a blocking call).
+        file_put_contents(RadioStartCommand::stopFlagFile(), '1');
+
+        // Wait up to 30 seconds for all processes to exit
+        $allStopped = false;
+        for ($i = 0; $i < 30; $i++) {
+            sleep(1);
+            $alive = array_filter($pids, fn(int $p) => posix_kill($p, 0));
+            if (empty($alive)) {
+                $allStopped = true;
+                break;
+            }
+        }
+
+        @unlink($pidFile);
+
+        if ($allStopped) {
+            $io->success('Radio stopped.');
+            return Command::SUCCESS;
+        }
+
+        $io->error('Radio process(es) did not stop within 30 seconds: ' . implode(', ', $alive ?? $pids));
         return Command::FAILURE;
+    }
+
+    /**
+     * Find all running radio:start processes by inspecting the process list.
+     *
+     * @return list<int>
+     */
+    private function findRadioProcesses(): array
+    {
+        if (!function_exists('exec')) {
+            return [];
+        }
+        $output = [];
+        $resultCode = 0;
+        exec('pgrep -f "[b]in/console radio:start" 2>/dev/null', $output, $resultCode);
+        if ($resultCode !== 0 || empty($output)) {
+            return [];
+        }
+        $pids = [];
+        foreach ($output as $line) {
+            $pid = (int) trim($line);
+            if ($pid > 0 && $pid !== getmypid() && posix_kill($pid, 0)) {
+                $pids[] = $pid;
+            }
+        }
+        return $pids;
     }
 }

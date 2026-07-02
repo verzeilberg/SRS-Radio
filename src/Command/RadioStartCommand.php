@@ -112,6 +112,33 @@ class RadioStartCommand extends Command
     public static function restartFlagFile(): string { return '/var/www/srs-radio/var/radio-restart.flag'; }
     public static function launchFile(): string      { return '/var/www/srs-radio/var/radio-launch.json'; }
 
+    /**
+     * Find all running radio:start processes by inspecting the process list.
+     * This works even when the PID file is missing or stale.
+     *
+     * @return list<int>
+     */
+    private function findRadioProcesses(): array
+    {
+        if (!function_exists('exec') || !function_exists('posix_kill')) {
+            return [];
+        }
+        $output = [];
+        $resultCode = 0;
+        exec('pgrep -f "[b]in/console radio:start" 2>/dev/null', $output, $resultCode);
+        if ($resultCode !== 0 || empty($output)) {
+            return [];
+        }
+        $pids = [];
+        foreach ($output as $line) {
+            $pid = (int) trim($line);
+            if ($pid > 0 && $pid !== getmypid() && posix_kill($pid, 0)) {
+                $pids[] = $pid;
+            }
+        }
+        return $pids;
+    }
+
     private function checkSignals(): void
     {
         if (function_exists('pcntl_signal_dispatch')) {
@@ -184,7 +211,28 @@ class RadioStartCommand extends Command
             getenv('PATH'),
         ]))));
 
-        // Refuse to start if another instance is already running.
+        // Enable async signals so SIGTERM/SIGINT are handled immediately even
+        // during blocking operations (sleep, HTTP calls, etc.).
+        if (function_exists('pcntl_async_signals')) {
+            pcntl_async_signals(true);
+        }
+
+        // Try to detect a running radio process even when the PID file is
+        // missing (e.g. deleted externally, or started by another mechanism).
+        $existingPids = $this->findRadioProcesses();
+        if (!empty($existingPids)) {
+            $thisPid = getmypid();
+            $others  = array_values(array_filter($existingPids, fn(int $p) => $p !== $thisPid));
+            if (!empty($others)) {
+                (new SymfonyStyle($input, $output))->error(sprintf(
+                    'Radio is already running (PID(s): %s). Run "bin/console radio:stop" first.',
+                    implode(', ', $others),
+                ));
+                return Command::FAILURE;
+            }
+        }
+
+        // Refuse to start if another instance is already running (PID file check).
         $pidFile = self::pidFile();
         if (file_exists($pidFile)) {
             $existingPid = (int) trim(file_get_contents($pidFile));
@@ -199,12 +247,32 @@ class RadioStartCommand extends Command
             @unlink($pidFile);
         }
 
+        // Write PID file early so the process is always discoverable, even if
+        // the lengthy setup below fails partway through.
+        $myPid = getmypid();
+        file_put_contents($pidFile, (string) $myPid);
+
         // Tee all output to the log file so the admin page always reflects the current run,
         // regardless of whether the radio was started from the terminal or the admin page.
         $logFh     = fopen(self::logFile(), 'w');
         $teeOutput = $this->createTeeOutput($output, $logFh);
         $io        = new SymfonyStyle($input, $teeOutput);
         $io->title('SRS FM — Autonomous Radio Station');
+
+        // Set up signal handlers early so SIGTERM/SIGINT are caught even
+        // during device discovery and other potentially-long setup calls.
+        if (function_exists('pcntl_signal')) {
+            $stop = function () use ($io): void {
+                $io->writeln("\n<comment>Stopping...</comment>");
+                $this->running = false;
+            };
+            pcntl_signal(SIGINT,  $stop);
+            pcntl_signal(SIGTERM, $stop);
+            pcntl_signal(SIGUSR1, function () use ($io): void {
+                $io->writeln("\n<comment>Skip...</comment>");
+                $this->skipCurrent = true;
+            });
+        }
 
         $this->clearDjSounds();
 
@@ -269,19 +337,6 @@ class RadioStartCommand extends Command
         $this->radioState->setPlaying();
         file_put_contents(self::pidFile(), getmypid());
         file_put_contents(self::launchFile(), json_encode(['device' => $this->launchDevice]));
-
-        if (function_exists('pcntl_signal')) {
-            $stop = function () use ($io): void {
-                $io->writeln("\n<comment>Stopping...</comment>");
-                $this->running = false;
-            };
-            pcntl_signal(SIGINT,  $stop);
-            pcntl_signal(SIGTERM, $stop);
-            pcntl_signal(SIGUSR1, function () use ($io): void {
-                $io->writeln("\n<comment>Skip...</comment>");
-                $this->skipCurrent = true;
-            });
-        }
 
         // Pre-pick two tracks: first to play immediately, second to show as "next" from the start.
         $nextTrack     = $this->pickTrack($io);
@@ -1524,7 +1579,11 @@ class RadioStartCommand extends Command
                     }
                     $wasPlaying = true;
                     $graceRetries = 0;
-                    $remaining = ($playback['duration_ms'] - $playback['progress_ms']) / 1000;
+                    // Sonos API may return 0 duration for Spotify streams — skip
+                    // remaining calculation and wait for is_playing to become false.
+                    if ($playback['duration_ms'] > 0) {
+                        $remaining = ($playback['duration_ms'] - $playback['progress_ms']) / 1000;
+                    }
                 } else {
                     if (!$this->sonos->isPlaying() && !$this->paused) {
                         if (!$wasPlaying) {

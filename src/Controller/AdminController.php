@@ -92,6 +92,7 @@ class AdminController extends AbstractController
     #[Route('/api/start', name: 'app_admin_start', methods: ['POST'])]
     public function start(): JsonResponse
     {
+        // Check both PID file and process list to prevent double starts.
         $pidFile = RadioStartCommand::pidFile();
         if (file_exists($pidFile)) {
             $existingPid = (int) trim(file_get_contents($pidFile));
@@ -99,6 +100,10 @@ class AdminController extends AbstractController
                 return new JsonResponse(['success' => false, 'message' => 'Radio is already running'], 400);
             }
             @unlink($pidFile);
+        }
+        $existingPids = $this->findRadioProcesses();
+        if (!empty($existingPids)) {
+            return new JsonResponse(['success' => false, 'message' => 'Radio is already running (PID(s): ' . implode(', ', $existingPids) . ')'], 400);
         }
 
         $device = '';
@@ -122,11 +127,27 @@ class AdminController extends AbstractController
     #[Route('/api/stop', name: 'app_admin_stop', methods: ['POST'])]
     public function stop(): JsonResponse
     {
-        if (!file_exists(RadioStartCommand::pidFile())) {
-            return new JsonResponse(['success' => false, 'message' => 'Radio is not running'], 400);
+        $found = false;
+
+        // Always write the stop flag — the running process will pick it up.
+        file_put_contents(RadioStartCommand::stopFlagFile(), '1');
+
+        // Also try to find the process and send SIGTERM directly, even when
+        // the PID file is missing (e.g. deleted externally).
+        $pids = $this->findRadioProcesses();
+        if (!empty($pids)) {
+            $found = true;
+            foreach ($pids as $pid) {
+                posix_kill($pid, SIGTERM);
+            }
         }
 
-        file_put_contents(RadioStartCommand::stopFlagFile(), '1');
+        if (!file_exists(RadioStartCommand::pidFile()) && !$found) {
+            // No PID file, no pgrep match — radio might really not be running.
+            // The stop flag is already written, so if a process starts later it
+            // will be picked up.
+            return new JsonResponse(['success' => true, 'message' => 'Stop signal sent.']);
+        }
 
         return new JsonResponse(['success' => true, 'message' => 'Radio stopping…']);
     }
@@ -134,10 +155,6 @@ class AdminController extends AbstractController
     #[Route('/api/next', name: 'app_admin_next', methods: ['POST'])]
     public function next(): JsonResponse
     {
-        if (!file_exists(RadioStartCommand::pidFile())) {
-            return new JsonResponse(['success' => false, 'message' => 'Radio is not running'], 400);
-        }
-
         file_put_contents(RadioStartCommand::skipFlagFile(), '1');
 
         return new JsonResponse(['success' => true, 'message' => 'Skipped!']);
@@ -146,10 +163,6 @@ class AdminController extends AbstractController
     #[Route('/api/pause', name: 'app_admin_pause', methods: ['POST'])]
     public function pause(): JsonResponse
     {
-        if (!file_exists(RadioStartCommand::pidFile())) {
-            return new JsonResponse(['success' => false, 'message' => 'Radio is not running'], 400);
-        }
-
         $pauseFile = RadioStartCommand::pauseFlagFile();
 
         if (file_exists($pauseFile)) {
@@ -164,10 +177,6 @@ class AdminController extends AbstractController
     #[Route('/api/restart', name: 'app_admin_restart', methods: ['POST'])]
     public function restart(): JsonResponse
     {
-        if (!file_exists(RadioStartCommand::pidFile())) {
-            return new JsonResponse(['success' => false, 'message' => 'Radio is not running'], 400);
-        }
-
         file_put_contents(RadioStartCommand::restartFlagFile(), '1');
 
         return new JsonResponse(['success' => true, 'message' => 'Restarting…']);
@@ -176,8 +185,11 @@ class AdminController extends AbstractController
     #[Route('/api/state', name: 'app_admin_state', methods: ['GET'])]
     public function state(): JsonResponse
     {
+        $pidFileExists = file_exists(RadioStartCommand::pidFile());
+        $pids          = $pidFileExists ? [] : $this->findRadioProcesses();
+
         return new JsonResponse([
-            'running' => file_exists(RadioStartCommand::pidFile()),
+            'running' => $pidFileExists || !empty($pids),
             'paused'  => file_exists(RadioStartCommand::pauseFlagFile()),
         ]);
     }
@@ -505,6 +517,32 @@ class AdminController extends AbstractController
         } catch (\Throwable $e) {
             return new JsonResponse(['error' => $e->getMessage(), 'results' => []], 500);
         }
+    }
+
+    /**
+     * Find all running radio:start processes by inspecting the process list.
+     * This works even when the PID file is missing or stale.
+     *
+     * @return list<int>
+     */
+    private function findRadioProcesses(): array
+    {
+        if (!function_exists('exec') || !function_exists('posix_kill')) {
+            return [];
+        }
+        $output = [];
+        exec('pgrep -f "[b]in/console radio:start" 2>/dev/null', $output, $resultCode);
+        if ($resultCode !== 0 || empty($output)) {
+            return [];
+        }
+        $pids = [];
+        foreach ($output as $line) {
+            $pid = (int) trim($line);
+            if ($pid > 0 && posix_kill($pid, 0)) {
+                $pids[] = $pid;
+            }
+        }
+        return $pids;
     }
 
     private function getSoccerDate(string $key): string
