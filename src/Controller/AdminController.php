@@ -428,6 +428,15 @@ class AdminController extends AbstractController
         return new JsonResponse(['ok' => true, 'status' => $request->getStatus()]);
     }
 
+    // ── Listener notes ──────────────────────────────────────────────────────
+
+    #[Route('/api/listener-notes', name: 'app_admin_listener_notes', methods: ['GET'])]
+    public function listenerNotes(): JsonResponse
+    {
+        $notes = array_reverse($this->radioState->getAllListenerNotes());
+        return new JsonResponse($notes);
+    }
+
     // ── Playlist pool ────────────────────────────────────────────────────────
 
     #[Route('/api/playlists', name: 'app_admin_playlists', methods: ['GET'])]

@@ -903,6 +903,33 @@
         }
         .btn-reject:hover { background: #991b1b; }
         .req-empty { font-size: .82rem; color: #3a2a5a; text-align: center; padding: 1.25rem; }
+
+        /* ── Listener notes (admin) ── */
+        .admin-note-item {
+            display: flex;
+            gap: .75rem;
+            align-items: flex-start;
+            padding: .65rem 1rem;
+            border-bottom: 1px solid #1a1a35;
+        }
+        .admin-note-item:last-child { border-bottom: none; }
+        .admin-note-item:hover { background: #0f0f22; }
+        .admin-note-body { flex: 1; min-width: 0; }
+        .admin-note-text { font-size: .875rem; color: #e0e0f0; word-break: break-word; }
+        .admin-note-meta { margin-top: .2rem; font-size: .72rem; color: #4a3a6a; }
+        .admin-note-badge {
+            flex-shrink: 0;
+            display: inline-block;
+            font-size: .6rem;
+            font-weight: 700;
+            letter-spacing: .07em;
+            text-transform: uppercase;
+            padding: .2rem .45rem;
+            border-radius: 4px;
+            margin-top: .1rem;
+        }
+        .admin-note-badge.queued { background: rgba(91,33,182,.3);  color: #b47fff; border: 1px solid #5b21b6; }
+        .admin-note-badge.played { background: rgba(134,239,172,.1); color: #86efac; border: 1px solid #2e7d52; }
     </style>
 </head>
 <body>
@@ -1000,6 +1027,20 @@
                         <tr><td colspan="6" class="req-empty">Loading…</td></tr>
                     </tbody>
                 </table>
+            </div>
+        </div>
+
+        {# ── Listener notes ── #}
+        <div class="section">
+            <div class="section-header">
+                <h2>📝 Listener notes</h2>
+                <span class="section-count" id="notes-pending-count"></span>
+            </div>
+
+            <div class="section-card">
+                <div id="notes-list" style="padding:.5rem 0">
+                    <div class="req-empty" id="notes-empty" style="display:none">No notes yet.</div>
+                </div>
             </div>
         </div>
 
@@ -1590,6 +1631,44 @@
 
         pollSongRequests();
         setInterval(pollSongRequests, 8000);
+
+        /* ── Listener notes ── */
+        async function pollListenerNotes() {
+            try {
+                const res   = await fetch('{{ path('app_admin_listener_notes') }}');
+                const notes = await res.json();
+                const list  = document.getElementById('notes-list');
+                const empty = document.getElementById('notes-empty');
+
+                list.querySelectorAll('.admin-note-item').forEach(el => el.remove());
+
+                const pending = notes.filter(n => (n.status || 'queued') === 'queued').length;
+                document.getElementById('notes-pending-count').textContent =
+                    pending ? pending + ' queued' : notes.length + ' total';
+
+                if (!notes.length) {
+                    empty.style.display = 'block';
+                    return;
+                }
+                empty.style.display = 'none';
+
+                notes.forEach(note => {
+                    const status = note.status || 'queued';
+                    const item   = document.createElement('div');
+                    item.className = 'admin-note-item';
+                    item.innerHTML =
+                        '<div class="admin-note-body">' +
+                            '<div class="admin-note-text">' + escReq(note.text) + '</div>' +
+                            '<div class="admin-note-meta">' + escReq(note.sender) + ' · ' + reqTimeAgo(note.at) + '</div>' +
+                        '</div>' +
+                        '<span class="admin-note-badge ' + status + '">' + (status === 'played' ? 'Aired' : 'Queued') + '</span>';
+                    list.appendChild(item);
+                });
+            } catch (_) {}
+        }
+
+        pollListenerNotes();
+        setInterval(pollListenerNotes, 8000);
 
         /* ── Playlist pool ── */
         let poolSearchResults = [];
