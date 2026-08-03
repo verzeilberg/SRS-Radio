@@ -192,8 +192,8 @@ class SonosApiService
                     'Content-Type'  => 'application/json',
                 ],
                 'json' => [
-                    'streamUrl'       => $spotifyUri,
-                    'itemId'          => $spotifyUri,
+                    'streamUrl'       => 'x-sonosapi-stream:' . $spotifyUri,
+                    'itemId'          => $trackId,
                     'stationMetadata' => [
                         'name'        => $title ?: 'SRS FM',
                         'description' => $artist,
