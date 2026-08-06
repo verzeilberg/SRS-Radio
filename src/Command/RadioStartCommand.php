@@ -12,6 +12,7 @@ use App\Repository\SongRequestRepository;
 use App\Repository\TrackRepository;
 use App\Service\DjScriptService;
 use App\Service\RadioStateService;
+use App\Service\RemoteRadioService;
 use App\Service\SonosApiService;
 use App\Service\SonosService;
 use App\Service\SpotifyService;
@@ -70,6 +71,7 @@ class RadioStartCommand extends Command
         private SongRequestRepository $songRequestRepository,
         private EntityManagerInterface $em,
         private RadioStateService $radioState,
+        private RemoteRadioService $remote,
         private WeatherService $weather,
         private NewsService $news,
         private ColleagueRepository $colleagueRepository,
@@ -245,6 +247,30 @@ class RadioStartCommand extends Command
             }
             // Stale PID file — previous run crashed without cleanup.
             @unlink($pidFile);
+        }
+
+        // Refuse to start when the radio is already running on the remote host.
+        $remoteStatus = $this->remote->status();
+        if ($remoteStatus['configured'] ?? false) {
+            if ($remoteStatus['reachable'] ?? false) {
+                if ($remoteStatus['running'] ?? false) {
+                    (new SymfonyStyle($input, $output))->error(sprintf(
+                        'Radio is already running on %s (PID %s). Run "bin/console radio:remote stop" first.',
+                        $remoteStatus['name'],
+                        $remoteStatus['pid'],
+                    ));
+                    return Command::FAILURE;
+                }
+                (new SymfonyStyle($input, $output))->note(sprintf(
+                    'Checked %s — no radio running there.',
+                    $remoteStatus['name'],
+                ));
+            } else {
+                (new SymfonyStyle($input, $output))->warning(sprintf(
+                    'Remote host %s is not reachable — could not verify whether the radio is already running there.',
+                    $this->remote->getName(),
+                ));
+            }
         }
 
         // Write PID file early so the process is always discoverable, even if

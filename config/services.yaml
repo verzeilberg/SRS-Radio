@@ -88,6 +88,13 @@ services:
         arguments:
             $projectDir: '%kernel.project_dir%'
 
+    App\Service\RemoteRadioService:
+        arguments:
+            $host: '%env(REMOTE_RADIO_HOST)%'
+            $user: '%env(REMOTE_RADIO_USER)%'
+            $dir:  '%env(REMOTE_RADIO_DIR)%'
+            $name: '%env(REMOTE_RADIO_NAME)%'
+
     App\Controller\RadioController:
         arguments:
             $jiraAlarmAccount: '%env(JIRA_ALARM_ACCOUNT)%'

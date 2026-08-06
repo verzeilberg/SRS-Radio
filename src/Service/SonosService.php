@@ -181,16 +181,7 @@ XML;
 
     public function play(string $spotifyTrackId, string $title, string $artist): void
     {
-        $sn  = $this->resolveSpotifySerialNum();
-        $sid = $this->resolveSpotifyServiceId();
-        $uri = 'x-sonos-spotify:spotify%3atrack%3a' . $spotifyTrackId . '?sid=' . $sid . '&flags=8232&sn=' . $sn;
-        $metadata = $this->buildMetadata($spotifyTrackId, $title, $artist, $sn, $sid);
-
-        $this->soap('SetAVTransportURI', [
-            'InstanceID'         => 0,
-            'CurrentURI'         => $uri,
-            'CurrentURIMetaData' => $metadata,
-        ]);
+        $this->setTrack('SetAVTransportURI', $spotifyTrackId, $title, $artist);
 
         $this->soap('Play', [
             'InstanceID' => 0,
@@ -200,15 +191,39 @@ XML;
 
     public function setNextTrack(string $spotifyTrackId, string $title, string $artist): void
     {
+        $this->setTrack('SetNextAVTransportURI', $spotifyTrackId, $title, $artist);
+    }
+
+    /**
+     * Set a track on the transport. If the speaker rejects the URI with UPnP
+     * error 800 (typically a stale/stale Spotify serial number in the URI),
+     * re-detect the sn from the speaker's current playback and retry once.
+     */
+    private function setTrack(string $action, string $spotifyTrackId, string $title, string $artist): void
+    {
+        try {
+            $this->doSetTrack($action, $spotifyTrackId, $title, $artist);
+        } catch (\RuntimeException $e) {
+            if (!str_contains($e->getMessage(), 'UPnPError800')) {
+                throw $e;
+            }
+            $this->spotifySerialNum = null;
+            $this->doSetTrack($action, $spotifyTrackId, $title, $artist);
+        }
+    }
+
+    private function doSetTrack(string $action, string $spotifyTrackId, string $title, string $artist): void
+    {
         $sn  = $this->resolveSpotifySerialNum();
         $sid = $this->resolveSpotifyServiceId();
         $uri = 'x-sonos-spotify:spotify%3atrack%3a' . $spotifyTrackId . '?sid=' . $sid . '&flags=8232&sn=' . $sn;
         $metadata = $this->buildMetadata($spotifyTrackId, $title, $artist, $sn, $sid);
 
-        $this->soap('SetNextAVTransportURI', [
-            'InstanceID'      => 0,
-            'NextURI'         => $uri,
-            'NextURIMetaData' => $metadata,
+        $isNext = $action === 'SetNextAVTransportURI';
+        $this->soap($action, [
+            'InstanceID'          => 0,
+            $isNext ? 'NextURI' : 'CurrentURI'         => $uri,
+            $isNext ? 'NextURIMetaData' : 'CurrentURIMetaData' => $metadata,
         ]);
     }
 
@@ -299,20 +314,33 @@ XML;
         ];
     }
 
+    /**
+     * Resolve the Spotify service serial number used in x-sonos-spotify URIs.
+     * Preferred sources, in order:
+     *   1. /status/accounts (linked service account, available on S1)
+     *   2. the sn of the currently loaded Spotify track on the speaker
+     *   3. the SONOS_SPOTIFY_SN env override
+     *   4. fallback 1
+     */
     private function resolveSpotifySerialNum(): int
     {
         if ($this->spotifySerialNum !== null) {
             return $this->spotifySerialNum;
         }
 
-        if ($this->spotifySnOverride > 0) {
-            return $this->spotifySerialNum = $this->spotifySnOverride;
-        }
-
         foreach ($this->getAccounts() as $account) {
             if ($account['type'] === '2311') {
                 return $this->spotifySerialNum = $account['serial_num'];
             }
+        }
+
+        $pos = $this->getPositionInfoRaw();
+        if ($pos !== '' && preg_match('/sn=(\d+)/', $pos, $m)) {
+            return $this->spotifySerialNum = (int) $m[1];
+        }
+
+        if ($this->spotifySnOverride > 0) {
+            return $this->spotifySerialNum = $this->spotifySnOverride;
         }
 
         return $this->spotifySerialNum = 1;

@@ -1002,6 +1002,26 @@
                     <button class="btn btn-restart" onclick="restartRadio()">🔄 Restart</button>
                 </div>
             </div>
+
+            {% if remote_configured %}
+            <div class="card">
+                <div class="card-title">Remote — <span id="remote-name">{{ remote_name }}</span></div>
+
+                <div class="now-playing">
+                    <div class="np-text">
+                        <div class="np-track" id="remote-track">—</div>
+                        <div class="np-artist" id="remote-artist">—</div>
+                    </div>
+                    <div class="np-status" id="remote-status"></div>
+                </div>
+
+                <div class="controls" style="margin-top:.75rem">
+                    <button class="btn btn-start" id="btn-remote-start" onclick="remoteStart()">▶ Start</button>
+                    <button class="btn btn-stop"  id="btn-remote-stop"  onclick="remoteStop()" style="display:none">■ Stop</button>
+                    <button class="btn btn-next"  id="btn-remote-next"  onclick="remoteNext()" style="display:none">⏭ Next</button>
+                </div>
+            </div>
+            {% endif %}
         </div>
 
         {# ── Song requests ── #}
@@ -1507,6 +1527,66 @@
                 setTimeout(() => { btn.disabled = false; btn.textContent = '🔄 Restart'; }, 8000);
             }
         }
+
+        /* ── Remote radio (over SSH) ── */
+        async function pollRemoteState() {
+            const name = document.getElementById('remote-name');
+            if (!name) return;
+            try {
+                const res  = await fetch('{{ path('app_admin_remote') }}');
+                const data = await res.json();
+                const track  = document.getElementById('remote-track');
+                const artist = document.getElementById('remote-artist');
+                const status = document.getElementById('remote-status');
+
+                if (!data.reachable) {
+                    track.textContent  = '—';
+                    artist.textContent = '';
+                    status.textContent = '✗ unreachable';
+                    status.style.color = '#fca5a5';
+                    return;
+                }
+
+                const running = !!data.running;
+                document.getElementById('btn-remote-start').style.display = running ? 'none' : '';
+                document.getElementById('btn-remote-stop').style.display  = running ? '' : 'none';
+                document.getElementById('btn-remote-next').style.display  = running ? '' : 'none';
+
+                const state = data.state || {};
+                track.textContent  = running ? (state.track_title || 'Playing…') : '—';
+                artist.textContent = running ? (state.track_artist || '') : '';
+                status.textContent = running ? '● on ' + (data.name || 'remote') : '○ stopped';
+                status.style.color = running ? '#86efac' : '#6b5a8a';
+            } catch (_) {
+                const status = document.getElementById('remote-status');
+                if (status) status.textContent = '✗ unreachable';
+            }
+        }
+
+        function remoteStart() { remoteAction('start'); }
+        function remoteStop()  { remoteAction('stop'); }
+        function remoteNext()  { remoteAction('next'); }
+
+        async function remoteAction(action) {
+            const idMap = { start: 'btn-remote-start', stop: 'btn-remote-stop', next: 'btn-remote-next' };
+            const btn = document.getElementById(idMap[action]);
+            btn.disabled = true;
+            try {
+                const res  = await fetch('{{ path('app_admin_remote_action', {'action': '__ACTION__'}) }}'.replace('__ACTION__', action), { method: 'POST' });
+                const data = await res.json();
+                showToast(data.message || (data.success ? 'Done' : 'Failed'), !data.success);
+            } catch (e) {
+                showToast('Request failed', true);
+            } finally {
+                btn.disabled = false;
+                setTimeout(pollRemoteState, 3000);
+            }
+        }
+
+        {% if remote_configured %}
+        pollRemoteState();
+        setInterval(pollRemoteState, 5000);
+        {% endif %}
 
         /* ── Log viewer ── */
         let logPinned = false;

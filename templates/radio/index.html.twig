@@ -907,16 +907,19 @@
             <div class="ranking-widget-fetch-area">
                 <div class="ranking-loading"></div>
                 <script>
-                    // Only show ranking during the WK pool period (start → end + 7 days)
+                    // Only show ranking during the WK pool period. Requires BOTH a start
+                    // and end date; without them the pool stays hidden. Visible window:
+                    // start → end + 7 days. Throwing stops the script before the widget
+                    // loads, leaving the section hidden.
                     const soccerStart = '{{ soccer_start }}';
                     const soccerEnd   = '{{ soccer_end }}';
-                    if (soccerStart && soccerEnd) {
-                        const today   = new Date();
-                        const start   = new Date(soccerStart + 'T00:00:00');
-                        const end     = new Date(soccerEnd + 'T00:00:00');
-                        const windowEnd = new Date(end);
-                        windowEnd.setDate(windowEnd.getDate() + 7);
-                        if (today < start || today > windowEnd) throw new Error('Outside WK pool date range');
+                    const today   = new Date();
+                    const start   = new Date((soccerStart || '1970-01-01') + 'T00:00:00');
+                    const end     = new Date((soccerEnd || '1970-01-01') + 'T00:00:00');
+                    const windowEnd = new Date(end);
+                    windowEnd.setDate(windowEnd.getDate() + 7);
+                    if (!soccerStart || !soccerEnd || today < start || today > windowEnd) {
+                        throw new Error('Outside WK pool date range');
                     }
 
                     const nameToImage = {

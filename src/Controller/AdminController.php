@@ -9,6 +9,7 @@ use App\Repository\PlaylistRepository;
 use App\Repository\SongRequestRepository;
 use App\Repository\UserRepository;
 use App\Service\RadioStateService;
+use App\Service\RemoteRadioService;
 use App\Service\SonosApiService;
 use App\Service\SonosService;
 use App\Service\SpotifyService;
@@ -30,6 +31,7 @@ class AdminController extends AbstractController
         private UserRepository $userRepository,
         private ColleagueRepository $colleagueRepository,
         private RadioStateService $radioState,
+        private RemoteRadioService $remoteRadio,
         private SonosService $sonos,
         private SonosApiService $sonosApi,
         private SpotifyService $spotify,
@@ -41,12 +43,14 @@ class AdminController extends AbstractController
         ['volume' => $volume, 'backend' => $backend] = $this->fetchVolume();
 
         return $this->render('admin/index.html.twig', [
-            'volume'          => $volume,
-            'backend'         => $backend,
-            'colleagues'      => $this->colleagueRepository->findBy([], ['name' => 'ASC']),
-            'existing_images' => $this->scanColleagueImages(),
-            'soccer_start'    => $this->getSoccerDate('start'),
-            'soccer_end'      => $this->getSoccerDate('end'),
+            'volume'            => $volume,
+            'backend'           => $backend,
+            'remote_configured' => $this->remoteRadio->isConfigured(),
+            'remote_name'       => $this->remoteRadio->getName(),
+            'colleagues'        => $this->colleagueRepository->findBy([], ['name' => 'ASC']),
+            'existing_images'   => $this->scanColleagueImages(),
+            'soccer_start'      => $this->getSoccerDate('start'),
+            'soccer_end'        => $this->getSoccerDate('end'),
         ]);
     }
 
@@ -104,6 +108,17 @@ class AdminController extends AbstractController
         $existingPids = $this->findRadioProcesses();
         if (!empty($existingPids)) {
             return new JsonResponse(['success' => false, 'message' => 'Radio is already running (PID(s): ' . implode(', ', $existingPids) . ')'], 400);
+        }
+
+        // Refuse when the radio is already running on the remote host.
+        $remoteStatus = $this->remoteRadio->status();
+        if (($remoteStatus['configured'] ?? false)
+            && ($remoteStatus['reachable'] ?? false)
+            && ($remoteStatus['running'] ?? false)) {
+            return new JsonResponse([
+                'success' => false,
+                'message' => 'Radio is already running on ' . $remoteStatus['name'] . ' (PID ' . $remoteStatus['pid'] . '). Stop it there first.',
+            ], 400);
         }
 
         $device = '';
@@ -192,6 +207,37 @@ class AdminController extends AbstractController
             'running' => $pidFileExists || !empty($pids),
             'paused'  => file_exists(RadioStartCommand::pauseFlagFile()),
         ]);
+    }
+
+    #[Route('/api/remote', name: 'app_admin_remote', methods: ['GET'])]
+    public function remoteStatus(): JsonResponse
+    {
+        if (!$this->remoteRadio->isConfigured()) {
+            return new JsonResponse(['configured' => false]);
+        }
+
+        return new JsonResponse($this->remoteRadio->status());
+    }
+
+    #[Route('/api/remote/{action}', name: 'app_admin_remote_action', methods: ['POST'])]
+    public function remoteAction(string $action): JsonResponse
+    {
+        if (!$this->remoteRadio->isConfigured()) {
+            return new JsonResponse(['success' => false, 'message' => 'Remote host not configured'], 400);
+        }
+
+        $result = match ($action) {
+            'start' => $this->remoteRadio->start(),
+            'stop'  => $this->remoteRadio->stop(),
+            'next'  => $this->remoteRadio->next(),
+            default => null,
+        };
+
+        if ($result === null) {
+            return new JsonResponse(['success' => false, 'message' => 'Unknown action'], 400);
+        }
+
+        return new JsonResponse($result);
     }
 
     #[Route('/api/log', name: 'app_admin_log', methods: ['GET'])]
