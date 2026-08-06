@@ -424,9 +424,42 @@ class RadioStartCommand extends Command
                 continue;
             }
 
+            if (!$this->running) {
+                break;
+            }
+
+            // Play any pending listener notes (submitted via the user dashboard)
+            $this->playListenerNoteIfPending($io);
+
+            // Play any birthday announcements queued by the 11:00 time event
+            if (!empty($this->pendingBirthdays)) {
+                $wasPreQueued = false; // don't continue a pre-queued track; birthdays come first
+                foreach ($this->pendingBirthdays as $birthday) {
+                    $this->playBirthdayAnnouncement($birthday, $io);
+                }
+                $this->pendingBirthdays = [];
+            }
+
+            // Play an approved song request before the next regular track
+            if ($this->playApprovedSongRequest($io)) {
+                // Discard any pre-generated DJ intro — it was written for a different song
+                if ($nextDjUrl !== null) {
+                    $this->tts->delete($nextDjUrl);
+                    $nextDjUrl  = null;
+                    $nextDjText = null;
+                    $nextDjType = 'between_tracks';
+                }
+                $nextTrack     = $this->pickTrack($io);
+                $nextNextTrack = $nextTrack ? $this->pickTrack($io, [$nextTrack['id']]) : null;
+                $wasPreQueued  = false;
+                continue;
+            }
+
             // Play pre-generated DJ intro — skip when Sonos already auto-started the next track.
             // state.next already shows $track from the previous iteration, which is correct:
             // the DJ is introducing the track that's about to play.
+            // This runs after the song-request check, so an approved request cancels the
+            // intro for the upcoming regular track instead of stacking two DJ clips.
             if (!$wasPreQueued && $nextDjUrl !== null) {
                 $io->writeln('<info>DJ:</info> ' . $nextDjText);
                 if (!$this->useSonosForDjClips) {
@@ -461,37 +494,6 @@ class RadioStartCommand extends Command
                 $nextDjUrl  = null;
                 $nextDjText = null;
                 $nextDjType = 'between_tracks';
-            }
-
-            if (!$this->running) {
-                break;
-            }
-
-            // Play any pending listener notes (submitted via the user dashboard)
-            $this->playListenerNoteIfPending($io);
-
-            // Play any birthday announcements queued by the 11:00 time event
-            if (!empty($this->pendingBirthdays)) {
-                $wasPreQueued = false; // don't continue a pre-queued track; birthdays come first
-                foreach ($this->pendingBirthdays as $birthday) {
-                    $this->playBirthdayAnnouncement($birthday, $io);
-                }
-                $this->pendingBirthdays = [];
-            }
-
-            // Play an approved song request before the next regular track
-            if ($this->playApprovedSongRequest($io)) {
-                // Discard any pre-generated DJ intro — it was written for a different song
-                if ($nextDjUrl !== null) {
-                    $this->tts->delete($nextDjUrl);
-                    $nextDjUrl  = null;
-                    $nextDjText = null;
-                    $nextDjType = 'between_tracks';
-                }
-                $nextTrack     = $this->pickTrack($io);
-                $nextNextTrack = $nextTrack ? $this->pickTrack($io, [$nextTrack['id']]) : null;
-                $wasPreQueued  = false;
-                continue;
             }
 
             $io->section(sprintf('Now playing: %s — %s', $track['title'], $track['artist']));
