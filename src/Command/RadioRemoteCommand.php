@@ -7,6 +7,7 @@ use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
@@ -21,6 +22,12 @@ class RadioRemoteCommand extends Command
     protected function configure(): void
     {
         $this->addArgument('action', InputArgument::OPTIONAL, 'Action: status, start, stop, next', 'status');
+        $this->addOption(
+            'stop-local',
+            null,
+            InputOption::VALUE_NONE,
+            'With "start": gracefully stop the radio on this machine before starting it remotely',
+        );
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -35,18 +42,21 @@ class RadioRemoteCommand extends Command
 
         return match ($action) {
             'status' => $this->status($io),
-            'start'  => $this->start($io),
+            'start'  => $this->start($io, (bool) $input->getOption('stop-local')),
             'stop'   => $this->runAction($io, $this->remote->stop()),
             'next'   => $this->runAction($io, $this->remote->next()),
             default  => $this->unknown($io, $action),
         };
     }
 
-    private function start(SymfonyStyle $io): int
+    private function start(SymfonyStyle $io, bool $stopLocal): int
     {
         if ($this->isLocalRadioRunning()) {
-            $io->error('Radio is already running on this machine. Run "bin/console radio:stop" first.');
-            return Command::FAILURE;
+            if (!$stopLocal) {
+                $io->error('Radio is already running on this machine. Run "bin/console radio:stop" first, or use --stop-local.');
+                return Command::FAILURE;
+            }
+            $this->stopLocalRadio($io);
         }
 
         return $this->runAction($io, $this->remote->start());
@@ -59,29 +69,55 @@ class RadioRemoteCommand extends Command
      */
     private function isLocalRadioRunning(): bool
     {
+        return $this->findLocalRadioPids() !== [];
+    }
+
+    /**
+     * Gracefully stop the local radio: signal the process and write the stop
+     * flag so the daemon picks it up even if SIGTERM is missed.
+     */
+    private function stopLocalRadio(SymfonyStyle $io): void
+    {
+        $pids = $this->findLocalRadioPids();
+        foreach ($pids as $pid) {
+            $io->writeln(sprintf('Stopping local radio (PID %d)…', $pid));
+            posix_kill($pid, SIGTERM);
+        }
+        file_put_contents(RadioStartCommand::stopFlagFile(), '1');
+
+        for ($i = 0; $i < 15 && $this->isLocalRadioRunning(); $i++) {
+            sleep(1);
+        }
+
+        $io->writeln(
+            $this->isLocalRadioRunning()
+                ? '<comment>Local radio did not stop within 15s — starting remote anyway.</comment>'
+                : '<info>Local radio stopped.</info>'
+        );
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function findLocalRadioPids(): array
+    {
+        $pids = [];
+
         $pidFile = RadioStartCommand::pidFile();
         if (file_exists($pidFile)) {
             $pid = (int) trim(file_get_contents($pidFile));
             if ($pid > 0 && posix_kill($pid, 0)) {
-                return true;
+                $pids[] = $pid;
             }
         }
 
-        if (!function_exists('exec')) {
-            return false;
-        }
-
-        $output = [];
-        $code   = 0;
-        exec('pgrep -f "[b]in/console radio:start" 2>/dev/null', $output, $code);
-        foreach ($output as $line) {
-            $pid = (int) trim($line);
-            if ($pid > 0 && $pid !== getmypid() && posix_kill($pid, 0)) {
-                return true;
+        foreach (RadioStartCommand::findRunningPids() as $pid) {
+            if (!in_array($pid, $pids, true)) {
+                $pids[] = $pid;
             }
         }
 
-        return false;
+        return $pids;
     }
 
     private function status(SymfonyStyle $io): int

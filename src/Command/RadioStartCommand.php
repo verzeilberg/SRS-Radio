@@ -34,6 +34,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 class RadioStartCommand extends Command
 {
     private string  $playbackMethod     = 'upnp';
+    private bool    $sonosApiBroken     = false;
     private bool    $running            = true;
     private bool    $skipCurrent        = false;
     private bool    $paused             = false;
@@ -118,9 +119,13 @@ class RadioStartCommand extends Command
      * Find all running radio:start processes by inspecting the process list.
      * This works even when the PID file is missing or stale.
      *
+     * Only real PHP processes are matched: shell wrappers (e.g. the "bash -c"
+     * used by SSH/daemon spawning) have the pattern in their command line too,
+     * but must never be mistaken for a running radio.
+     *
      * @return list<int>
      */
-    private function findRadioProcesses(): array
+    public static function findRunningPids(): array
     {
         if (!function_exists('exec') || !function_exists('posix_kill')) {
             return [];
@@ -131,14 +136,32 @@ class RadioStartCommand extends Command
         if ($resultCode !== 0 || empty($output)) {
             return [];
         }
+        $myPid = getmypid();
         $pids = [];
         foreach ($output as $line) {
             $pid = (int) trim($line);
-            if ($pid > 0 && $pid !== getmypid() && posix_kill($pid, 0)) {
-                $pids[] = $pid;
+            if ($pid <= 0 || $pid === $myPid) {
+                continue;
             }
+            if (!posix_kill($pid, 0)) {
+                continue;
+            }
+            if (!self::isPhpProcess($pid)) {
+                continue;
+            }
+            $pids[] = $pid;
         }
         return $pids;
+    }
+
+    private static function isPhpProcess(int $pid): bool
+    {
+        $commFile = "/proc/$pid/comm";
+        if (!is_readable($commFile)) {
+            return false;
+        }
+        $comm = trim((string) file_get_contents($commFile));
+        return $comm !== '' && str_starts_with($comm, 'php');
     }
 
     private function checkSignals(): void
@@ -221,7 +244,7 @@ class RadioStartCommand extends Command
 
         // Try to detect a running radio process even when the PID file is
         // missing (e.g. deleted externally, or started by another mechanism).
-        $existingPids = $this->findRadioProcesses();
+        $existingPids = self::findRunningPids();
         if (!empty($existingPids)) {
             $thisPid = getmypid();
             $others  = array_values(array_filter($existingPids, fn(int $p) => $p !== $thisPid));
@@ -628,11 +651,16 @@ class RadioStartCommand extends Command
             throw new \RuntimeException(sprintf('Spotify device "%s" unreachable after retries.', $name));
         }
 
-        if ($this->sonosApi->getGroupId()) {
-            $io->writeln('<comment>→ Sonos API</comment>');
-            $this->sonosApi->playSpotifyTrack($track['uri'], $track['title'], $track['artist']);
-            $this->playbackMethod = 'sonos_api';
-            return;
+        if (!$this->sonosApiBroken && $this->sonosApi->getGroupId()) {
+            try {
+                $io->writeln('<comment>→ Sonos API</comment>');
+                $this->sonosApi->playSpotifyTrack($track['uri'], $track['title'], $track['artist']);
+                $this->playbackMethod = 'sonos_api';
+                return;
+            } catch (\Throwable $e) {
+                $this->sonosApiBroken = true;
+                $io->warning(sprintf('Sonos API playback mislukt (%s) — valt terug op UPnP.', $e->getMessage()));
+            }
         }
 
         try {

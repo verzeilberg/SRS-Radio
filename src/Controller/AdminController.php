@@ -582,22 +582,7 @@ class AdminController extends AbstractController
      */
     private function findRadioProcesses(): array
     {
-        if (!function_exists('exec') || !function_exists('posix_kill')) {
-            return [];
-        }
-        $output = [];
-        exec('pgrep -f "[b]in/console radio:start" 2>/dev/null', $output, $resultCode);
-        if ($resultCode !== 0 || empty($output)) {
-            return [];
-        }
-        $pids = [];
-        foreach ($output as $line) {
-            $pid = (int) trim($line);
-            if ($pid > 0 && posix_kill($pid, 0)) {
-                $pids[] = $pid;
-            }
-        }
-        return $pids;
+        return RadioStartCommand::findRunningPids();
     }
 
     private function getSoccerDate(string $key): string

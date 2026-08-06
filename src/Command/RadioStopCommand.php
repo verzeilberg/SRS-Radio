@@ -30,7 +30,7 @@ class RadioStopCommand extends Command
 
         // Fallback: also look for any radio:start processes via pgrep.
         // This catches instances running without a PID file.
-        $foundPids = $this->findRadioProcesses();
+        $foundPids = RadioStartCommand::findRunningPids();
         foreach ($foundPids as $foundPid) {
             if (!in_array($foundPid, $pids, true)) {
                 $pids[] = $foundPid;
@@ -71,31 +71,5 @@ class RadioStopCommand extends Command
 
         $io->error('Radio process(es) did not stop within 30 seconds: ' . implode(', ', $alive ?? $pids));
         return Command::FAILURE;
-    }
-
-    /**
-     * Find all running radio:start processes by inspecting the process list.
-     *
-     * @return list<int>
-     */
-    private function findRadioProcesses(): array
-    {
-        if (!function_exists('exec')) {
-            return [];
-        }
-        $output = [];
-        $resultCode = 0;
-        exec('pgrep -f "[b]in/console radio:start" 2>/dev/null', $output, $resultCode);
-        if ($resultCode !== 0 || empty($output)) {
-            return [];
-        }
-        $pids = [];
-        foreach ($output as $line) {
-            $pid = (int) trim($line);
-            if ($pid > 0 && $pid !== getmypid() && posix_kill($pid, 0)) {
-                $pids[] = $pid;
-            }
-        }
-        return $pids;
     }
 }

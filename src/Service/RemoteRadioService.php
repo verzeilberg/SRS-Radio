@@ -58,7 +58,12 @@ class RemoteRadioService
 
     public function start(): array
     {
-        $cmd = sprintf('cd %s && nohup php bin/console radio:start > /dev/null 2>&1 < /dev/null & echo $!', $this->dir);
+        // Split "radio:start" so the SSH wrapper shell's own command line never
+        // contains "bin/console radio:start". radio:start detects already-running
+        // instances with pgrep -f, and a wrapper carrying the pattern would be
+        // mistaken for a second instance (it would refuse to start). The remote
+        // shell concatenates radio:s""tart back into radio:start.
+        $cmd = sprintf('cd %s && nohup php bin/console radio:s""tart > /dev/null 2>&1 < /dev/null & echo $!', $this->dir);
         [$out] = $this->ssh($cmd);
 
         $running = $this->status()['running'] ?? false;
