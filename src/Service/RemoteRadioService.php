@@ -63,7 +63,16 @@ class RemoteRadioService
         // instances with pgrep -f, and a wrapper carrying the pattern would be
         // mistaken for a second instance (it would refuse to start). The remote
         // shell concatenates radio:s""tart back into radio:start.
-        $cmd = sprintf('cd %s && nohup php bin/console radio:s""tart > /dev/null 2>&1 < /dev/null & echo $!', $this->dir);
+        // Stale stop/restart/skip flags (e.g. left over from a previous stop)
+        // are cleared first — otherwise the freshly started radio would
+        // immediately stop itself.
+        $cmd = sprintf(
+            'rm -f %s/var/radio-stop.flag %s/var/radio-restart.flag %s/var/radio-skip.flag; cd %s && nohup php bin/console radio:s""tart > /dev/null 2>&1 < /dev/null & echo $!',
+            $this->dir,
+            $this->dir,
+            $this->dir,
+            $this->dir,
+        );
         [$out] = $this->ssh($cmd);
 
         $running = $this->status()['running'] ?? false;

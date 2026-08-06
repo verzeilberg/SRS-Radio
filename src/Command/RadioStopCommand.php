@@ -47,10 +47,6 @@ class RadioStopCommand extends Command
             posix_kill($pid, SIGTERM);
         }
 
-        // Write the stop flag file as a fallback in case the process doesn't
-        // respond to SIGTERM immediately (e.g. stuck in a blocking call).
-        file_put_contents(RadioStartCommand::stopFlagFile(), '1');
-
         // Wait up to 30 seconds for all processes to exit
         $allStopped = false;
         for ($i = 0; $i < 30; $i++) {
@@ -60,6 +56,13 @@ class RadioStopCommand extends Command
                 $allStopped = true;
                 break;
             }
+        }
+
+        // Only fall back to the stop flag file if a process ignored SIGTERM.
+        // Writing it unconditionally leaves a stale flag that would immediately
+        // stop the next radio:start.
+        if (!$allStopped) {
+            file_put_contents(RadioStartCommand::stopFlagFile(), '1');
         }
 
         @unlink($pidFile);
