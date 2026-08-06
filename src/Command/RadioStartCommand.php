@@ -397,22 +397,6 @@ class RadioStartCommand extends Command
 
         while ($this->running) {
             $this->checkSignals();
-            $timeEventPlayed = $this->playTimeEventIfScheduled($io, $nextTrack);
-
-            // The time event clip already announced the next song — discard the separate intro.
-            if ($timeEventPlayed && $nextDjUrl !== null) {
-                $this->tts->delete($nextDjUrl);
-                $nextDjUrl  = null;
-                $nextDjText = null;
-                $nextDjType = 'between_tracks';
-            }
-
-            // DLNA/UPnP clips call SetAVTransportURI, which wipes the pre-queued next track.
-            // Reset wasPreQueued so the main loop explicitly starts the track rather than
-            // assuming Sonos auto-transitioned to it.
-            if ($timeEventPlayed && !$this->sonosApi->getGroupId()) {
-                $wasPreQueued = false;
-            }
 
             $track = $nextTrack;
 
@@ -453,6 +437,25 @@ class RadioStartCommand extends Command
                 $nextNextTrack = $nextTrack ? $this->pickTrack($io, [$nextTrack['id']]) : null;
                 $wasPreQueued  = false;
                 continue;
+            }
+
+            // Run scheduled time events (news/weather/etc.) only when no approved song
+            // request is pending — otherwise their DJ clip stacks with the request clip.
+            $timeEventPlayed = $this->playTimeEventIfScheduled($io, $nextTrack);
+
+            // The time event clip already announced the next song — discard the separate intro.
+            if ($timeEventPlayed && $nextDjUrl !== null) {
+                $this->tts->delete($nextDjUrl);
+                $nextDjUrl  = null;
+                $nextDjText = null;
+                $nextDjType = 'between_tracks';
+            }
+
+            // DLNA/UPnP clips call SetAVTransportURI, which wipes the pre-queued next track.
+            // Reset wasPreQueued so the main loop explicitly starts the track rather than
+            // assuming Sonos auto-transitioned to it.
+            if ($timeEventPlayed && !$this->sonosApi->getGroupId()) {
+                $wasPreQueued = false;
             }
 
             // Play pre-generated DJ intro — skip when Sonos already auto-started the next track.
