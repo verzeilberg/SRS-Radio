@@ -1115,6 +1115,12 @@ class RadioStartCommand extends Command
             $request->getTitle(), $request->getRequestedBy()));
 
         sleep(5);
+        // Branch on playbackMethod (like waitForTrackToEnd) — NOT on getGroupId().
+        // The Sonos API returns duration_ms=0 for UPnP-played Spotify tracks, so
+        // checking the API here would compute remaining=0 and cut the requested
+        // track short after a few seconds.
+        $wasPlaying   = false;
+        $graceRetries = 0;
         while ($this->running) {
             $this->checkSignals();
             if ($this->skipCurrent) {
@@ -1123,22 +1129,54 @@ class RadioStartCommand extends Command
             try {
                 if ($this->playbackMethod === 'spotify_connect') {
                     $playback  = $this->spotify->getCurrentPlayback();
-                    if (empty($playback) || !$playback['is_playing']) break;
-                    $remaining = ($playback['duration_ms'] - $playback['progress_ms']) / 1000;
-                } elseif ($this->sonosApi->getGroupId()) {
+                    $isPlaying = !empty($playback) && $playback['is_playing'];
+                    $remaining = $isPlaying ? ($playback['duration_ms'] - $playback['progress_ms']) / 1000 : 0;
+                } elseif ($this->playbackMethod === 'sonos_api') {
                     $playback  = $this->sonosApi->getPlayback();
-                    if (empty($playback) || !$playback['is_playing']) break;
-                    $remaining = ($playback['duration_ms'] - $playback['progress_ms']) / 1000;
+                    $isPlaying = !empty($playback) && $playback['is_playing'];
+                    $remaining = $isPlaying && $playback['duration_ms'] > 0
+                        ? ($playback['duration_ms'] - $playback['progress_ms']) / 1000
+                        : 0;
                 } else {
-                    if (!$this->sonos->isPlaying()) break;
-                    $pos       = $this->sonos->getPositionInfo();
-                    if ($pos['duration'] === 0) { sleep(2); continue; }
-                    $remaining = max(0, $pos['duration'] - $pos['position']);
+                    $isPlaying = $this->sonos->isPlaying();
+                    $remaining  = 0;
+                    if ($isPlaying) {
+                        $pos = $this->sonos->getPositionInfo();
+                        if ($pos['duration'] === 0) {
+                            usleep(500_000);
+                            continue;
+                        }
+                        $remaining = max(0, $pos['duration'] - $pos['position']);
+                    }
                 }
-                if ($remaining <= 3) break;
+
+                if (!$isPlaying) {
+                    if (!$wasPlaying) {
+                        sleep(2);
+                        $wasPlaying = true;
+                        continue;
+                    }
+                    $graceRetries++;
+                    if ($graceRetries > 2) {
+                        break;
+                    }
+                    usleep(1_000_000);
+                    continue;
+                }
+                $wasPlaying   = true;
+                $graceRetries = 0;
+
+                if ($remaining > 0 && $remaining <= 3) {
+                    break;
+                }
                 sleep(min(10, max(1, (int) $remaining - 3)));
-            } catch (\Throwable) {
-                break;
+            } catch (\Throwable $e) {
+                $io->warning('Song request playback check mislukt: ' . $e->getMessage());
+                $graceRetries++;
+                if ($graceRetries > 2) {
+                    break;
+                }
+                usleep(1_000_000);
             }
         }
 
@@ -1274,15 +1312,43 @@ class RadioStartCommand extends Command
                     usleep(100_000);
                 }
                 if ($this->running && !$this->skipCurrent) {
-                    try {
-                        $this->sonosApi->playSpotifyTrack($nextTrack['uri'], $nextTrack['title'], $nextTrack['artist']);
-                        $io->writeln('<comment>→ Volgend nummer klaargezet tijdens clip</comment>');
-                    } catch (\Throwable) {}
+                    $preLoaded = false;
+                    // The preload uses the Sonos API. When that API already
+                    // proved unreliable (music plays via UPnP), don't attempt
+                    // it — the call would fail anyway, and falsely reporting an
+                    // auto-transition afterwards would skip the announced track
+                    // so a different song plays right after the DJ intro.
+                    if (!$this->sonosApiBroken) {
+                        try {
+                            $preLoaded = $this->sonosApi->playSpotifyTrack($nextTrack['uri'], $nextTrack['title'], $nextTrack['artist']);
+                            $io->writeln('<comment>→ Volgend nummer klaargezet tijdens clip</comment>');
+                        } catch (\Throwable $e) {
+                            $io->warning(sprintf('Voorladen volgend nummer mislukt: %s', $e->getMessage()));
+                        }
+                    }
                     $remaining = ($duration * 0.05) + 0.5;
                     if ($remaining > 0) {
                         usleep((int) ($remaining * 1_000_000));
                     }
-                    return true;
+                    // Report an auto-transition only when the announced track
+                    // really started playing after the clip. The old
+                    // isPlaying() check here was always true while the DJ clip
+                    // itself was still playing, so a failed preload silently
+                    // skipped the announced track and the next one played.
+                    if ($preLoaded) {
+                        for ($i = 0; $i < 15; $i++) {
+                            try {
+                                $playback = $this->sonosApi->getPlayback();
+                                if (!empty($playback) && $playback['is_playing']) {
+                                    return true;
+                                }
+                            } catch (\Throwable) {}
+                            usleep(200_000);
+                        }
+                    }
+                    // Preload failed or the track never started — the main loop
+                    // must start the announced track explicitly.
+                    return false;
                 }
             }
             $end = microtime(true) + $duration + 0.3;

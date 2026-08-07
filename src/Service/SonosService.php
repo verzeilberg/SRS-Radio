@@ -165,6 +165,8 @@ XML;
 
     public function playHttpClip(string $url): void
     {
+        $this->clearNextTrack();
+
         $ext      = strtolower(pathinfo(parse_url($url, PHP_URL_PATH), PATHINFO_EXTENSION));
         $mimeMap  = ['mp3' => 'audio/mpeg', 'wav' => 'audio/wav', 'ogg' => 'audio/ogg', 'aac' => 'audio/aac'];
         $mime     = $mimeMap[$ext] ?? 'audio/mpeg';
@@ -181,12 +183,31 @@ XML;
 
     public function play(string $spotifyTrackId, string $title, string $artist): void
     {
+        $this->clearNextTrack();
+
         $this->setTrack('SetAVTransportURI', $spotifyTrackId, $title, $artist);
 
         $this->soap('Play', [
             'InstanceID' => 0,
             'Speed'      => 1,
         ]);
+    }
+
+    /**
+     * Drop any track pre-queued via SetNextAVTransportURI. Without this, a
+     * stale pre-queued track makes Sonos auto-advance right after the track
+     * we explicitly start (e.g. a requested song), so a different song is
+     * heard a few seconds later.
+     */
+    public function clearNextTrack(): void
+    {
+        try {
+            $this->soap('SetNextAVTransportURI', [
+                'InstanceID'      => 0,
+                'NextURI'         => '',
+                'NextURIMetaData' => '',
+            ]);
+        } catch (\Throwable) {}
     }
 
     public function setNextTrack(string $spotifyTrackId, string $title, string $artist): void
