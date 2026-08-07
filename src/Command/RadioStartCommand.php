@@ -893,6 +893,14 @@ class RadioStartCommand extends Command
             return false;
         }
 
+        // WK pool ranking is only announced while the pool is active (both a
+        // start and end date are set in var/soccer-dates.json and today falls
+        // within the window), matching the WK screen on the radio page.
+        if ($type === 'ranking' && !$this->soccerPoolActive()) {
+            $io->writeln('<comment>[ranking]</comment> WK pool niet actief (start/end datum) — overslaan.');
+            return false;
+        }
+
         try {
             $weatherData = $type === 'weather' ? $this->weather->getCurrent() : null;
             $headlines   = $type === 'news' ? $this->news->getHeadlines(3) : null;
@@ -1566,6 +1574,39 @@ class RadioStartCommand extends Command
             $this->tts->setServerBaseUrl($new);
             $io->writeln(sprintf('<info>DJ server URL:</info> %s', $new));
         }
+    }
+
+    /**
+     * WK pool is only announced when both a start and end date are configured
+     * in var/soccer-dates.json AND today falls within that window — the same
+     * rule used by the WK screen on the radio page.
+     */
+    private function soccerPoolActive(): bool
+    {
+        $file = $this->projectDir . '/var/soccer-dates.json';
+        if (!file_exists($file)) {
+            return false;
+        }
+
+        $data = json_decode((string) file_get_contents($file), true);
+        $start = trim($data['start'] ?? '');
+        $end   = trim($data['end'] ?? '');
+        if ($start === '' || $end === '') {
+            return false;
+        }
+
+        $startDate = \DateTimeImmutable::createFromFormat('Y-m-d', $start);
+        $endDate   = \DateTimeImmutable::createFromFormat('Y-m-d', $end);
+        if (!$startDate || !$endDate) {
+            return false;
+        }
+
+        $today = (new \DateTimeImmutable('now', new \DateTimeZone('Europe/Amsterdam')))
+            ->setTime(0, 0);
+
+        $windowEnd = $endDate->modify('+7 days');
+
+        return $today >= $startDate && $today <= $windowEnd;
     }
 
     private function fetchRanking(): ?array
