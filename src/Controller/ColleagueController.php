@@ -24,7 +24,7 @@ class ColleagueController extends AbstractController
     public function index(): Response
     {
         return $this->render('colleague/index.html.twig', [
-            'colleagues' => $this->repository->findBy([], ['name' => 'ASC']),
+            'colleagues' => $this->repository->findAllOrderedByBirthday(),
         ]);
     }
 

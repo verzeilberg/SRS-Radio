@@ -25,4 +25,15 @@ class ColleagueRepository extends ServiceEntityRepository
                              && (int) $c->getBirthdate()->format('d') === $day,
         ));
     }
+
+    /** @return Colleague[] */
+    public function findAllOrderedByBirthday(): array
+    {
+        return $this->createQueryBuilder('c')
+            ->orderBy('MONTH(c.birthdate)', 'ASC')
+            ->addOrderBy('DAY(c.birthdate)', 'ASC')
+            ->addOrderBy('c.name', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
 }
