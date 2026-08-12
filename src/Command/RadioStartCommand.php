@@ -422,6 +422,10 @@ class RadioStartCommand extends Command
                     $this->playBirthdayAnnouncement($birthday, $io);
                 }
                 $this->pendingBirthdays = [];
+                // The birthday song played to completion inside playBirthdaySong, so
+                // undo its skipCurrent signal here: the loop must keep waiting for the
+                // pre-picked track instead of cutting it off right after it starts.
+                $this->skipCurrent = false;
             }
 
             // Play an approved song request before the next regular track
@@ -1029,22 +1033,29 @@ class RadioStartCommand extends Command
         $this->radioState->setBirthday($name, $picture);
         $io->writeln(sprintf('<comment>[birthday] Playing song for %s...</comment>', $name));
 
-        // Wait for the song to finish
+        // Wait for the song to finish. The Sonos API reports no itemDurationMillis
+        // for Spotify streams started via UPnP (duration_ms becomes 0), so compute
+        // the remaining time only when a real duration is known — otherwise keep
+        // polling until playback stops, instead of treating "unknown duration" as
+        // "song already ended" (which cut the birthday song after a few seconds).
         sleep(5);
         while ($this->running) {
             $this->checkSignals();
             try {
                 if ($this->sonosApi->getGroupId()) {
-                    $playback  = $this->sonosApi->getPlayback();
-                    if (empty($playback) || !$playback['is_playing']) break;
-                    $remaining = ($playback['duration_ms'] - $playback['progress_ms']) / 1000;
+                    $playback = $this->sonosApi->getPlayback();
                 } else {
-                    $playback  = $this->spotify->getCurrentPlayback();
-                    if (empty($playback) || !$playback['is_playing']) break;
-                    $remaining = ($playback['duration_ms'] - $playback['progress_ms']) / 1000;
+                    $playback = $this->spotify->getCurrentPlayback();
                 }
-                if ($remaining <= 3) break;
-                sleep(min(10, max(1, (int) $remaining - 3)));
+                if (empty($playback) || !$playback['is_playing']) break;
+
+                if ($playback['duration_ms'] > 0) {
+                    $remaining = ($playback['duration_ms'] - $playback['progress_ms']) / 1000;
+                    if ($remaining <= 3) break;
+                    sleep(min(10, max(1, (int) $remaining - 3)));
+                } else {
+                    sleep(10);
+                }
             } catch (\Throwable) {
                 break;
             }

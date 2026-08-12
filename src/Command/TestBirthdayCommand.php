@@ -204,10 +204,16 @@ class TestBirthdayCommand extends Command
                     try {
                         $playback  = $this->sonosApi->getPlayback();
                         if (empty($playback) || !$playback['is_playing']) break;
-                        $remaining = ($playback['duration_ms'] - $playback['progress_ms']) / 1000;
-                        $io->writeln(sprintf('<comment>%.0fs remaining...</comment>', $remaining));
-                        if ($remaining <= 3) break;
-                        sleep(min(10, max(1, (int) $remaining - 3)));
+                        // Sonos API may not report a duration for Spotify streams —
+                        // keep polling until playback stops in that case.
+                        if ($playback['duration_ms'] > 0) {
+                            $remaining = ($playback['duration_ms'] - $playback['progress_ms']) / 1000;
+                            $io->writeln(sprintf('<comment>%.0fs remaining...</comment>', $remaining));
+                            if ($remaining <= 3) break;
+                            sleep(min(10, max(1, (int) $remaining - 3)));
+                        } else {
+                            sleep(10);
+                        }
                     } catch (\Throwable) {
                         break;
                     }
