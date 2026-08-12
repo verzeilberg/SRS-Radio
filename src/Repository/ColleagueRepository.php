@@ -29,11 +29,13 @@ class ColleagueRepository extends ServiceEntityRepository
     /** @return Colleague[] */
     public function findAllOrderedByBirthday(): array
     {
-        return $this->createQueryBuilder('c')
-            ->orderBy('MONTH(c.birthdate)', 'ASC')
-            ->addOrderBy('DAY(c.birthdate)', 'ASC')
-            ->addOrderBy('c.name', 'ASC')
-            ->getQuery()
+        $rsm = new \Doctrine\ORM\Query\ResultSetMappingBuilder($this->getEntityManager());
+        $rsm->addRootEntityFromClassMetadata(Colleague::class, 'c');
+
+        $sql = 'SELECT ' . $rsm->generateSelectClause() . ' FROM colleague c ORDER BY MONTH(c.birthdate) ASC, DAY(c.birthdate) ASC, c.name ASC';
+
+        return $this->getEntityManager()
+            ->createNativeQuery($sql, $rsm)
             ->getResult();
     }
 }
