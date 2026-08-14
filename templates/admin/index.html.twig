@@ -604,6 +604,36 @@
 
         .hint { font-size: .8rem; color: #4a3a6a; padding: 1rem; }
 
+        /* ── Users table extras ── */
+        .role-pill {
+            display: inline-block;
+            padding: .15rem .55rem;
+            border-radius: 20px;
+            font-size: .7rem;
+            font-weight: 700;
+            letter-spacing: .06em;
+            text-transform: uppercase;
+            margin-right: .2rem;
+        }
+        .role-admin { background: rgba(180,120,255,.2); color: #b47fff; }
+        .role-user  { background: rgba(100,181,246,.15); color: #64b5f6; }
+
+        .btn-icon {
+            background: transparent;
+            border: 1px solid #2a2a4a;
+            border-radius: 6px;
+            color: #6b5a8a;
+            font-family: 'Lato', sans-serif;
+            font-size: .78rem;
+            padding: .3rem .65rem;
+            cursor: pointer;
+            transition: background .2s, color .2s, border-color .2s;
+            margin-right: .35rem;
+        }
+        .btn-icon:hover { color: #b47fff; border-color: #5b21b6; }
+        .btn-icon.danger:hover { color: #f87171; border-color: #991b1b; background: rgba(239,68,68,.1); }
+        .btn-icon:disabled { opacity: .4; cursor: not-allowed; }
+
         /* ── Log viewer ── */
         .log-section { margin-bottom: 2.5rem; }
 
@@ -930,18 +960,82 @@
         }
         .admin-note-badge.queued { background: rgba(91,33,182,.3);  color: #b47fff; border: 1px solid #5b21b6; }
         .admin-note-badge.played { background: rgba(134,239,172,.1); color: #86efac; border: 1px solid #2e7d52; }
+
+        /* ── Side navigation ── */
+        .side-nav {
+            position: fixed;
+            top: 70px;
+            left: 1.5rem;
+            width: 200px;
+            max-height: calc(100vh - 90px);
+            overflow-y: auto;
+            z-index: 100;
+        }
+        .side-nav ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .side-nav li { margin-bottom: .25rem; }
+        .side-nav a {
+            display: block;
+            padding: .5rem .75rem;
+            color: #6b5a8a;
+            text-decoration: none;
+            font-size: .8rem;
+            font-weight: 500;
+            border-radius: 6px;
+            transition: background .2s, color .2s, padding-left .2s;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .side-nav a:hover {
+            background: rgba(180,120,255,.1);
+            color: #b47fff;
+            padding-left: 1rem;
+        }
+        .side-nav a.active {
+            background: rgba(180,120,255,.15);
+            color: #b47fff;
+            border-left: 3px solid #b47fff;
+            padding-left: .75rem;
+        }
+
+        /* Adjust main content for side nav */
+        main {
+            margin-left: 240px;
+        }
+
+        @media (max-width: 1024px) {
+            .side-nav { display: none; }
+            main { margin-left: 0; }
+        }
     </style>
 </head>
 <body>
     <header>
         <span class="brand">🛡️ SRS RADIO <span class="badge">Admin</span></span>
         <nav>
-            <a href="{{ path('app_admin_users') }}">Users</a>
             <a href="{{ path('app_radio') }}">Radio</a>
             <a href="{{ path('setup') }}">Setup</a>
             <a href="{{ path('app_admin_logout') }}" class="danger">Sign out</a>
         </nav>
     </header>
+
+    {# ── Side navigation ── #}
+    <nav class="side-nav" id="sideNav" aria-label="Section navigation">
+        <ul>
+            <li><a href="#section-radio-controls" data-section="section-radio-controls">Radio controls</a></li>
+            <li><a href="#section-song-requests" data-section="section-song-requests">Song requests</a></li>
+            <li><a href="#section-listener-notes" data-section="section-listener-notes">Listener notes</a></li>
+            <li><a href="#section-playlist-pool" data-section="section-playlist-pool">Playlist pool</a></li>
+            <li><a href="#section-radio-log" data-section="section-radio-log">Radio log</a></li>
+            <li><a href="#section-birthday-calendar" data-section="section-birthday-calendar">Birthday calendar</a></li>
+            <li><a href="#section-wk-pool" data-section="section-wk-pool">WK Pool</a></li>
+            <li><a href="#section-users" data-section="section-users">Users</a></li>
+        </ul>
+    </nav>
 
     <main>
 
@@ -953,8 +1047,9 @@
         {% endfor %}
 
         {# ── Radio controls ── #}
-        <h2>Radio controls</h2>
-        <div class="radio-grid">
+        <section id="section-radio-controls" class="section-anchor">
+            <h2>Radio controls</h2>
+            <div class="radio-grid">
             <div class="card">
                 <div class="card-title">Volume</div>
                 <div class="volume-display">
@@ -1002,36 +1097,24 @@
                     <button class="btn btn-restart" onclick="restartRadio()">🔄 Restart</button>
                 </div>
             </div>
-
-            {% if remote_configured %}
-            <div class="card">
-                <div class="card-title">Remote — <span id="remote-name">{{ remote_name }}</span></div>
-
-                <div class="now-playing">
-                    <div class="np-text">
-                        <div class="np-track" id="remote-track">—</div>
-                        <div class="np-artist" id="remote-artist">—</div>
-                    </div>
-                    <div class="np-status" id="remote-status"></div>
-                </div>
-
-                <div class="controls" style="margin-top:.75rem">
-                    <button class="btn btn-start" id="btn-remote-start" onclick="remoteStart()">▶ Start</button>
-                    <button class="btn btn-stop"  id="btn-remote-stop"  onclick="remoteStop()" style="display:none">■ Stop</button>
-                    <button class="btn btn-next"  id="btn-remote-next"  onclick="remoteNext()" style="display:none">⏭ Next</button>
-                </div>
-            </div>
-            {% endif %}
         </div>
 
-        {# ── Song requests ── #}
-        <div class="section">
-            <div class="section-header">
-                <h2>🎵 Song requests</h2>
-                <span class="section-count" id="req-pending-count"></span>
-            </div>
+{# ── Song requests ── #}
+        <section id="section-song-requests" class="section-anchor">
+            <div class="section">
+                <div class="section-header">
+                    <h2>
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#b47fff" stroke-width="1.5" style="vertical-align:middle;margin-right:.25rem">
+                            <path d="M9 18V5l12-2v13"/>
+                            <circle cx="6" cy="18" r="3"/>
+                            <circle cx="18" cy="16" r="3"/>
+                        </svg>
+                        Song requests
+                    </h2>
+                    <span class="section-count" id="req-pending-count"></span>
+                </div>
 
-            <div class="section-card">
+                <div class="section-card">
                 <table class="req-table">
                     <thead>
                         <tr>
@@ -1050,28 +1133,47 @@
             </div>
         </div>
 
-        {# ── Listener notes ── #}
-        <div class="section">
-            <div class="section-header">
-                <h2>📝 Listener notes</h2>
-                <span class="section-count" id="notes-pending-count"></span>
-            </div>
+{# ── Listener notes ── #}
+        <section id="section-listener-notes" class="section-anchor">
+            <div class="section">
+                <div class="section-header">
+                    <h2>
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#b47fff" stroke-width="1.5" style="vertical-align:middle;margin-right:.25rem">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                            <polyline points="14 2 14 8 20 8"/>
+                            <line x1="16" y1="13" x2="8" y2="13"/>
+                            <line x1="16" y1="17" x2="8" y2="17"/>
+                            <polyline points="10 9 9 9 8 9"/>
+                        </svg>
+                        Listener notes
+                    </h2>
+                    <span class="section-count" id="notes-pending-count"></span>
+                </div>
 
-            <div class="section-card">
-                <div id="notes-list" style="padding:.5rem 0">
-                    <div class="req-empty" id="notes-empty" style="display:none">No notes yet.</div>
+                <div class="section-card">
+                    <div id="notes-list" style="padding:.5rem 0">
+                        <div class="req-empty" id="notes-empty" style="display:none">No notes yet.</div>
+                    </div>
                 </div>
             </div>
-        </div>
+        </section>
 
         {# ── Playlist pool ── #}
-        <div class="section">
-            <div class="section-header">
-                <h2>🎵 Playlist pool</h2>
-                <span class="section-count" id="pool-count"></span>
-            </div>
+        <section id="section-playlist-pool" class="section-anchor">
+            <div class="section">
+                <div class="section-header">
+                    <h2>
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#b47fff" stroke-width="1.5" style="vertical-align:middle;margin-right:.25rem">
+                            <path d="M4 11V4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-5"/>
+                            <polyline points="8 11 12 7 16 11"/>
+                            <line x1="8" y1="11" x2="16" y2="11"/>
+                        </svg>
+                        Playlist pool
+                    </h2>
+                    <span class="section-count" id="pool-count"></span>
+                </div>
 
-            <div class="section-card" style="padding:1.25rem">
+                <div class="section-card" style="padding:1.25rem">
                 <div id="pool-list" class="pool-list">
                     <p class="pool-empty">Loading…</p>
                 </div>
@@ -1087,66 +1189,43 @@
             </div>
         </div>
 
-        {# ── Radio log ── #}
-        <div class="log-section">
-            <div class="log-header">
-                <h2>Radio log</h2>
-                <div class="log-controls">
-                    <span class="log-auto-badge" id="log-auto-badge">● live</span>
-                    <button class="btn-log-clear" onclick="toggleLogScroll()">📌 Pin</button>
+        {# ◀◀ Radio log ◀◀ #}
+        <section id="section-radio-log" class="section-anchor">
+            <div class="log-section">
+                <div class="log-header">
+                    <h2>
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#b47fff" stroke-width="1.5" style="vertical-align:middle;margin-right:.25rem">
+                            <path d="M4 19h16"/>
+                            <path d="M4 13h16"/>
+                            <path d="M4 7h16"/>
+                            <path d="M16 19v-4"/>
+                            <path d="M8 13v-4"/>
+                            <path d="M12 7v-4"/>
+                        </svg>
+                        Radio log
+                    </h2>
+                    <div class="log-controls">
+                        <span class="log-auto-badge" id="log-auto-badge">● live</span>
+                        <button class="btn-log-clear" onclick="toggleLogScroll()">📌 Pin</button>
+                    </div>
+                </div>
+                <div class="log-box">
+                    <div class="log-body" id="log-body"></div>
+                    <div class="log-footer">
+                        <span id="log-line-count">—</span>
+                        <span id="log-updated">—</span>
+                    </div>
                 </div>
             </div>
-            <div class="log-box">
-                <div class="log-body" id="log-body"></div>
-                <div class="log-footer">
-                    <span id="log-line-count">—</span>
-                    <span id="log-updated">—</span>
+        </section>
+
+        {# ◀◀ Birthday calendar ◀◀ #}
+        <section id="section-birthday-calendar" class="section-anchor">
+            <div class="section">
+                <div class="section-header">
+                    <h2>🎂 Birthday calendar</h2>
+                    <span class="section-count">{{ colleagues|length }} colleague{{ colleagues|length != 1 ? 's' : '"' }}</span>
                 </div>
-            </div>
-        </div>
-
-        {# ── Birthday calendar ── #}
-        <div class="section">
-            <div class="section-header">
-                <h2>🎂 Birthday calendar</h2>
-                <span class="section-count">{{ colleagues|length }} colleague{{ colleagues|length != 1 ? 's' : '' }}</span>
-            </div>
-
-            <div class="birthday-layout">
-                {# Colleague grid #}
-                <div>
-                    {% if colleagues is empty %}
-                        <p class="no-colleagues">No colleagues yet — add one using the form.</p>
-                    {% else %}
-                        <div class="colleague-grid">
-                            {% for c in colleagues %}
-                                {% set isToday = c.birthdate|date('m-d') == 'now'|date('m-d') %}
-                                <div class="colleague-card {{ isToday ? 'is-today' : '' }}">
-                                    {% if isToday %}<span class="today-badge">🎉 Today!</span>{% endif %}
-
-                                    {% if c.picture %}
-                                        <img src="/images/colleagues/{{ c.picture }}" alt="{{ c.name }}">
-                                    {% else %}
-                                        <div class="colleague-placeholder">👤</div>
-                                    {% endif %}
-
-                                    <div class="colleague-info">
-                                        <div class="colleague-name">{{ c.name }}</div>
-                                        <div class="colleague-bday">{{ c.birthdate|date('d F') }}</div>
-                                    </div>
-
-                                    <form method="post" action="{{ path('colleagues') }}/{{ c.id }}"
-                                          onsubmit="return confirm('Remove {{ c.name|e('js') }}?')">
-                                        <input type="hidden" name="_method" value="DELETE">
-                                        <input type="hidden" name="_return_to" value="admin">
-                                        <button type="submit" class="btn-remove">Remove</button>
-                                    </form>
-                                </div>
-                            {% endfor %}
-                        </div>
-                    {% endif %}
-                </div>
-
                 {# Add form #}
                 <div>
                     <form class="add-form" method="post" action="{{ path('colleagues') }}"
@@ -1225,33 +1304,130 @@
                         <button type="submit" class="btn-submit">Add to calendar</button>
                     </form>
                 </div>
+
+                {# Colleague grid #}
+                <div style="margin-top: 2rem;">
+                    {% if colleagues is empty %}
+                        <p class="no-colleagues">No colleagues yet — add one using the form.</p>
+                    {% else %}
+                        <div class="colleague-grid">
+                            {% for c in colleagues %}
+                                {% set isToday = c.birthdate|date('m-d') == 'now'|date('m-d') %}
+                                <div class="colleague-card {{ isToday ? 'is-today' : '' }}">
+                                    {% if isToday %}<span class="today-badge">🎉 Today!</span>{% endif %}
+
+                                    {% if c.picture %}
+                                        <img src="/images/colleagues/{{ c.picture }}" alt="{{ c.name }}">
+                                    {% else %}
+                                        <div class="colleague-placeholder">👤</div>
+                                    {% endif %}
+
+                                    <div class="colleague-info">
+                                        <div class="colleague-name">{{ c.name }}</div>
+                                        <div class="colleague-bday">{{ c.birthdate|date('d F') }}</div>
+                                    </div>
+
+                                    <form method="post" action="{{ path('colleagues') }}/{{ c.id }}"
+                                          onsubmit="return confirm('Remove {{ c.name|e('js') }}?')">
+                                        <input type="hidden" name="_method" value="DELETE">
+                                        <input type="hidden" name="_return_to" value="admin">
+                                        <button type="submit" class="btn-remove">Remove</button>
+                                    </form>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
             </div>
         </div>
 
         {# ── Soccer / WK Pool ── #}
-        <div class="section">
-            <div class="section-header">
-                <h2>
-                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#b47fff" stroke-width="1.5" style="vertical-align:middle;margin-right:.25rem">
-                        <circle cx="12" cy="12" r="10"/>
-                        <circle cx="12" cy="12" r="4" stroke-width="1"/>
-                        <path d="M4.5 4.5l5 5M14.5 14.5l5 5M19.5 4.5l-5 5M9.5 14.5l-5 5" stroke-width="1" opacity=".5"/>
-                    </svg>
-                    WK Pool
-                </h2>
+        <section id="section-wk-pool" class="section-anchor">
+            <div class="section">
+                <div class="section-header">
+                    <h2>
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#b47fff" stroke-width="1.5" style="vertical-align:middle;margin-right:.25rem">
+                            <circle cx="12" cy="12" r="10"/>
+                            <circle cx="12" cy="12" r="4" stroke-width="1"/>
+                            <path d="M4.5 4.5l5 5M14.5 14.5l5 5M19.5 4.5l-5 5M9.5 14.5l-5 5" stroke-width="1" opacity=".5"/>
+                        </svg>
+                        WK Pool
+                    </h2>
+                </div>
+                <div class="section-card" style="padding:1.5rem">
+                    <div class="field">
+                        <label for="soccer-start">Start date</label>
+                        <input type="date" id="soccer-start" value="{{ soccer_start }}" class="pool-search-input">
+                    </div>
+                    <div class="field">
+                        <label for="soccer-end">End date</label>
+                        <input type="date" id="soccer-end" value="{{ soccer_end }}" class="pool-search-input">
+                    </div>
+                    <button class="btn-submit" onclick="saveSoccerDates()">Save dates</button>
+                </div>
             </div>
-            <div class="section-card" style="padding:1.5rem">
-                <div class="field">
-                    <label for="soccer-start">Start date</label>
-                    <input type="date" id="soccer-start" value="{{ soccer_start }}" class="pool-search-input">
-                </div>
-                <div class="field">
-                    <label for="soccer-end">End date</label>
-                    <input type="date" id="soccer-end" value="{{ soccer_end }}" class="pool-search-input">
-                </div>
-                <button class="btn-submit" onclick="saveSoccerDates()">Save dates</button>
+        </section>
+
+{# ── Users ── #}
+        <section id="section-users" class="section-anchor">
+            <div class="section">
+                <div class="section-header">
+                    <h2>
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#b47fff" stroke-width="1.5" style="vertical-align:middle;margin-right:.25rem">
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                        <circle cx="9" cy="7" r="4"/>
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                    </svg>
+                    Users
+                </h2>
+                <span class="section-count">{{ users|length }} user{{ users|length != 1 ? 's' : '' }}</span>
+            </div>
+
+            <div class="section-card">
+                {% if users is empty %}
+                    <p class="hint">No users yet.</p>
+                {% else %}
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Roles</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for user in users %}
+                            <tr id="user-row-{{ user.id }}">
+                                <td>{{ user.id }}</td>
+                                <td>{{ user.displayName }}</td>
+                                <td>{{ user.email }}</td>
+                                <td>
+                                    {% for role in user.roles %}
+                                        <span class="role-pill {{ role == 'ROLE_ADMIN' ? 'role-admin' : 'role-user' }}">
+                                            {{ role|replace({'ROLE_': ''}) }}
+                                        </span>
+                                    {% endfor %}
+                                </td>
+                                <td>
+                                    <button class="btn-icon" onclick="toggleRole({{ user.id }})" id="btn-role-{{ user.id }}">
+                                        Toggle admin
+                                    </button>
+                                    <button class="btn-icon danger" onclick="deleteUser({{ user.id }})" id="btn-delete-{{ user.id }}">
+                                        Delete
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                {% endif %}
             </div>
         </div>
+    </section>
+    </section>
 
     </main>
 
@@ -1527,66 +1703,6 @@
                 setTimeout(() => { btn.disabled = false; btn.textContent = '🔄 Restart'; }, 8000);
             }
         }
-
-        /* ── Remote radio (over SSH) ── */
-        async function pollRemoteState() {
-            const name = document.getElementById('remote-name');
-            if (!name) return;
-            try {
-                const res  = await fetch('{{ path('app_admin_remote') }}');
-                const data = await res.json();
-                const track  = document.getElementById('remote-track');
-                const artist = document.getElementById('remote-artist');
-                const status = document.getElementById('remote-status');
-
-                if (!data.reachable) {
-                    track.textContent  = '—';
-                    artist.textContent = '';
-                    status.textContent = '✗ unreachable';
-                    status.style.color = '#fca5a5';
-                    return;
-                }
-
-                const running = !!data.running;
-                document.getElementById('btn-remote-start').style.display = running ? 'none' : '';
-                document.getElementById('btn-remote-stop').style.display  = running ? '' : 'none';
-                document.getElementById('btn-remote-next').style.display  = running ? '' : 'none';
-
-                const state = data.state || {};
-                track.textContent  = running ? (state.track_title || 'Playing…') : '—';
-                artist.textContent = running ? (state.track_artist || '') : '';
-                status.textContent = running ? '● on ' + (data.name || 'remote') : '○ stopped';
-                status.style.color = running ? '#86efac' : '#6b5a8a';
-            } catch (_) {
-                const status = document.getElementById('remote-status');
-                if (status) status.textContent = '✗ unreachable';
-            }
-        }
-
-        function remoteStart() { remoteAction('start'); }
-        function remoteStop()  { remoteAction('stop'); }
-        function remoteNext()  { remoteAction('next'); }
-
-        async function remoteAction(action) {
-            const idMap = { start: 'btn-remote-start', stop: 'btn-remote-stop', next: 'btn-remote-next' };
-            const btn = document.getElementById(idMap[action]);
-            btn.disabled = true;
-            try {
-                const res  = await fetch('{{ path('app_admin_remote_action', {'action': '__ACTION__'}) }}'.replace('__ACTION__', action), { method: 'POST' });
-                const data = await res.json();
-                showToast(data.message || (data.success ? 'Done' : 'Failed'), !data.success);
-            } catch (e) {
-                showToast('Request failed', true);
-            } finally {
-                btn.disabled = false;
-                setTimeout(pollRemoteState, 3000);
-            }
-        }
-
-        {% if remote_configured %}
-        pollRemoteState();
-        setInterval(pollRemoteState, 5000);
-        {% endif %}
 
         /* ── Log viewer ── */
         let logPinned = false;
@@ -1902,6 +2018,99 @@
         }
 
         loadPool();
+
+        /* ── Users ── */
+        async function toggleRole(id) {
+            const btn = document.getElementById('btn-role-' + id);
+            btn.disabled = true;
+            try {
+                const res = await fetch('{{ path('app_admin_user_toggle_role', {'id': '__ID__'}) }}'.replace('__ID__', id), { method: 'POST' });
+                const data = await res.json();
+                if (data.error) { showToast(data.error, true); return; }
+                location.reload();
+            } catch {
+                showToast('Failed to toggle role', true);
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        async function deleteUser(id) {
+            if (!confirm('Delete this user? This cannot be undone.')) return;
+            const btn = document.getElementById('btn-delete-' + id);
+            btn.disabled = true;
+            try {
+                const res = await fetch('{{ path('app_admin_user_delete', {'id': '__ID__'}) }}'.replace('__ID__', id), { method: 'POST' });
+                const data = await res.json();
+                if (data.error) { showToast(data.error, true); btn.disabled = false; return; }
+                const row = document.getElementById('user-row-' + id);
+                row.style.transition = 'opacity .3s';
+                row.style.opacity = '0';
+                setTimeout(() => row.remove(), 300);
+                showToast('User deleted');
+            } catch {
+                showToast('Failed to delete user', true);
+            } finally {
+                btn.disabled = false;
+}
+    }
+
+        /* ── Side navigation scrollspy ── */
+        const sideNavLinks = document.querySelectorAll('#sideNav a[data-section]');
+        const sections = Array.from(sideNavLinks).map(link => {
+            const id = link.dataset.section;
+            return document.getElementById(id);
+        }).filter(Boolean);
+
+        function updateActiveLink() {
+            const scrollPos = window.scrollY + window.innerHeight / 3;
+            let activeSection = null;
+            let highestTop = -Infinity;
+
+            sections.forEach(section => {
+                const top = section.offsetTop;
+                const bottom = top + section.offsetHeight;
+                if (scrollPos >= top && scrollPos < bottom && top > highestTop) {
+                    highestTop = top;
+                    activeSection = section;
+                }
+            });
+
+            // If at bottom of page, activate last section
+            if (!activeSection && window.innerHeight + window.scrollY >= document.body.offsetHeight - 50) {
+                activeSection = sections[sections.length - 1];
+            }
+
+            sideNavLinks.forEach(link => {
+                link.classList.toggle('active', link.dataset.section === (activeSection?.id || ''));
+            });
+        }
+
+        window.addEventListener('scroll', updateActiveLink, { passive: true });
+        window.addEventListener('resize', updateActiveLink);
+        updateActiveLink();
+
+        // Smooth scroll on click
+        function setActiveLink(activeLink) {
+            sideNavLinks.forEach(l => l.classList.toggle('active', l === activeLink));
+        }
+
+        sideNavLinks.forEach((link, index) => {
+            link.addEventListener('click', e => {
+                e.preventDefault();
+                // First link (Radio controls) scrolls to very top
+                if (index === 0) {
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                    setActiveLink(link);
+                } else {
+                    const target = document.querySelector(link.getAttribute('href'));
+                    if (target) {
+                        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        setActiveLink(link);
+                    }
+                }
+            });
+        });
     </script>
 </body>
 </html>

@@ -51,6 +51,7 @@ class AdminController extends AbstractController
             'existing_images'   => $this->scanColleagueImages(),
             'soccer_start'      => $this->getSoccerDate('start'),
             'soccer_end'        => $this->getSoccerDate('end'),
+            'users'             => $this->userRepository->findAll(),
         ]);
     }
 
@@ -361,15 +362,7 @@ class AdminController extends AbstractController
         };
     }
 
-    // ── User management ──────────────────────────────────────────────────────
-
-    #[Route('/users', name: 'app_admin_users')]
-    public function users(): Response
-    {
-        return $this->render('admin/users.html.twig', [
-            'users' => $this->userRepository->findAll(),
-        ]);
-    }
+    
 
     #[Route('/api/user/{id}/name', name: 'app_admin_user_name', methods: ['POST'])]
     public function updateUserName(int $id, Request $request, EntityManagerInterface $em): JsonResponse
