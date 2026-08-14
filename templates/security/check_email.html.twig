@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SRS Radio – Check Your Email</title>
+    <link href="https://fonts.googleapis.com/css2?family=Raleway:wght@300;400;700;900&family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        html, body {
+            height: 100%;
+            font-family: 'Lato', sans-serif;
+            background: #0a1929;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .card {
+            background: #112240;
+            border: 1px solid #1e3a5f;
+            border-radius: 12px;
+            padding: 2.5rem 2.75rem;
+            width: 100%;
+            max-width: 400px;
+            box-shadow: 0 20px 60px rgba(0,0,0,.5);
+            text-align: center;
+        }
+
+        .logo-wrap {
+            margin-bottom: 1.75rem;
+        }
+
+        .logo-icon {
+            font-size: 3rem;
+            display: block;
+            margin: 0 auto 1rem;
+        }
+
+        h1 {
+            font-family: 'Raleway', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 700;
+            letter-spacing: .1em;
+            color: #64b5f6;
+            margin-bottom: 1rem;
+        }
+
+        .message {
+            font-size: 1rem;
+            color: #a0b8d8;
+            line-height: 1.6;
+            margin-bottom: 2rem;
+        }
+
+        .email-address {
+            font-family: monospace;
+            background: #0d1f35;
+            border: 1px solid #1e3a5f;
+            border-radius: 6px;
+            padding: .5rem 1rem;
+            color: #64b5f6;
+            display: inline-block;
+            margin: 1rem 0;
+        }
+
+        .hint {
+            font-size: .85rem;
+            color: #6b8aad;
+            margin-top: 1.5rem;
+        }
+
+        .login-link {
+            margin-top: 2rem;
+            font-size: .8rem;
+            color: #4a6a8a;
+        }
+
+        .login-link a {
+            color: #4a6a8a;
+            text-decoration: none;
+            border-bottom: 1px solid #2a4a6a;
+            transition: color .2s;
+        }
+
+        .login-link a:hover { color: #64b5f6; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="logo-wrap">
+            <span class="logo-icon">📻</span>
+            <h1>SRS RADIO</h1>
+        </div>
+
+        <p class="message">If an account with that email exists, we've sent a password reset link.</p>
+
+        <p class="hint">Check your inbox (and spam folder) for an email from us.</p>
+
+        <p class="login-link">
+            <a href="{{ path('app_login') }}">Back to sign in</a>
+        </p>
+    </div>
+</body>
+</html>
