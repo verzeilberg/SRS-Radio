@@ -55,8 +55,13 @@ class RadioStartCommand extends Command
     private int $tracksSinceDj   = 0;
     private int $djEveryNTracks  = 2;
 
-    private int $tracksSinceCommercial = 10; // start with a commercial sooner
-    private int $commercialsEveryNTracks = 4; // randomised each time
+    private int $tracksSinceCommercial = 10;
+    private int $commercialsEveryNTracks = 4;
+
+    // Pre-generated DJ clip for the next track (generated during current track playback)
+    private ?string $preGeneratedDjUrl  = null;
+    private ?string $preGeneratedDjText = null;
+    private ?string $preGeneratedDjType = 'between_tracks';
 
     // Built in constructor so WEATHER_HOUR can be injected: [hour, day-of-week, type]
     private array $timeEvents;
@@ -390,10 +395,7 @@ class RadioStartCommand extends Command
         // Pre-pick two tracks: first to play immediately, second to show as "next" from the start.
         $nextTrack     = $this->pickTrack($io);
         $nextNextTrack = $nextTrack ? $this->pickTrack($io, [$nextTrack['id']]) : null;
-        $nextDjUrl     = null;
-        $nextDjText    = null;
-        $nextDjType    = 'between_tracks';
-        $wasPreQueued  = false; // true when Sonos already started the next track via SetNextAVTransportURI
+        $wasPreQueued  = false;
 
         while ($this->running) {
             $this->checkSignals();
@@ -417,25 +419,29 @@ class RadioStartCommand extends Command
 
             // Play any birthday announcements queued by the 11:00 time event
             if (!empty($this->pendingBirthdays)) {
-                $wasPreQueued = false; // don't continue a pre-queued track; birthdays come first
+                // Discard pre-generated DJ clip — birthday will play a song and re-pick next track
+                if ($this->preGeneratedDjUrl !== null) {
+                    $this->tts->delete($this->preGeneratedDjUrl);
+                    $this->preGeneratedDjUrl  = null;
+                    $this->preGeneratedDjText = null;
+                    $this->preGeneratedDjType = 'between_tracks';
+                }
+                $wasPreQueued = false;
                 foreach ($this->pendingBirthdays as $birthday) {
                     $this->playBirthdayAnnouncement($birthday, $io);
                 }
                 $this->pendingBirthdays = [];
-                // The birthday song played to completion inside playBirthdaySong, so
-                // undo its skipCurrent signal here: the loop must keep waiting for the
-                // pre-picked track instead of cutting it off right after it starts.
                 $this->skipCurrent = false;
             }
 
             // Play an approved song request before the next regular track
             if ($this->playApprovedSongRequest($io)) {
                 // Discard any pre-generated DJ intro — it was written for a different song
-                if ($nextDjUrl !== null) {
-                    $this->tts->delete($nextDjUrl);
-                    $nextDjUrl  = null;
-                    $nextDjText = null;
-                    $nextDjType = 'between_tracks';
+                if ($this->preGeneratedDjUrl !== null) {
+                    $this->tts->delete($this->preGeneratedDjUrl);
+                    $this->preGeneratedDjUrl  = null;
+                    $this->preGeneratedDjText = null;
+                    $this->preGeneratedDjType = 'between_tracks';
                 }
                 $nextTrack     = $this->pickTrack($io);
                 $nextNextTrack = $nextTrack ? $this->pickTrack($io, [$nextTrack['id']]) : null;
@@ -448,11 +454,11 @@ class RadioStartCommand extends Command
             $timeEventPlayed = $this->playTimeEventIfScheduled($io, $nextTrack);
 
             // The time event clip already announced the next song — discard the separate intro.
-            if ($timeEventPlayed && $nextDjUrl !== null) {
-                $this->tts->delete($nextDjUrl);
-                $nextDjUrl  = null;
-                $nextDjText = null;
-                $nextDjType = 'between_tracks';
+            if ($timeEventPlayed && $this->preGeneratedDjUrl !== null) {
+                $this->tts->delete($this->preGeneratedDjUrl);
+                $this->preGeneratedDjUrl  = null;
+                $this->preGeneratedDjText = null;
+                $this->preGeneratedDjType = 'between_tracks';
             }
 
             // DLNA/UPnP clips call SetAVTransportURI, which wipes the pre-queued next track.
@@ -462,22 +468,19 @@ class RadioStartCommand extends Command
                 $wasPreQueued = false;
             }
 
-            // Play pre-generated DJ intro — skip when Sonos already auto-started the next track.
-            // state.next already shows $track from the previous iteration, which is correct:
-            // the DJ is introducing the track that's about to play.
-            // This runs after the song-request check, so an approved request cancels the
-            // intro for the upcoming regular track instead of stacking two DJ clips.
-            if (!$wasPreQueued && $nextDjUrl !== null) {
-                $io->writeln('<info>DJ:</info> ' . $nextDjText);
+            // Play pre-generated DJ intro for the upcoming track.
+            // The clip was generated during the previous track's playback.
+            if ($this->preGeneratedDjUrl !== null && $nextTrack !== null) {
+                $io->writeln('<info>DJ:</info> ' . $this->preGeneratedDjText);
                 if (!$this->useSonosForDjClips) {
-                    $this->playDjClipViaBrowser($nextDjUrl, $io);
+                    $this->playDjClipViaBrowser($this->preGeneratedDjUrl, $io);
                 } else {
-                    $djDurationMs = (int) ($this->tts->getDuration($nextDjUrl) * 1000);
+                    $djDurationMs = (int) ($this->tts->getDuration($this->preGeneratedDjUrl) * 1000);
                     $this->radioState->setTrack('DJ Sander', 'SRS FM', $djDurationMs);
                     try {
-                        $preLoaded = $this->playDjClipViaSonos($nextDjUrl, $io, $track);
+                        $preLoaded = $this->playDjClipViaSonos($this->preGeneratedDjUrl, $io, $nextTrack);
                         if (!$this->skipCurrent) {
-                            $this->em->persist(new DjAnnouncement($nextDjText, $nextDjUrl, $nextDjType));
+                            $this->em->persist(new DjAnnouncement($this->preGeneratedDjText, $this->preGeneratedDjUrl, $this->preGeneratedDjType));
                             if ($preLoaded) {
                                 $wasPreQueued = true;
                             }
@@ -487,20 +490,10 @@ class RadioStartCommand extends Command
                     }
                     $this->skipCurrent = false;
                 }
-                $this->tts->delete($nextDjUrl);
-                $nextDjUrl  = null;
-                $nextDjText = null;
-                $nextDjType = 'between_tracks';
-            }
-
-            // If Sonos already auto-transitioned (wasPreQueued), the window to play the DJ intro
-            // has passed. Discard the stale clip now — keeping it would cause the next iteration
-            // to announce the already-playing track and then jump to a completely different song.
-            if ($wasPreQueued && $nextDjUrl !== null) {
-                $this->tts->delete($nextDjUrl);
-                $nextDjUrl  = null;
-                $nextDjText = null;
-                $nextDjType = 'between_tracks';
+                $this->tts->delete($this->preGeneratedDjUrl);
+                $this->preGeneratedDjUrl  = null;
+                $this->preGeneratedDjText = null;
+                $this->preGeneratedDjType = 'between_tracks';
             }
 
             $io->section(sprintf('Now playing: %s — %s', $track['title'], $track['artist']));
@@ -510,6 +503,13 @@ class RadioStartCommand extends Command
                     $this->playTrack($track, $io);
                 } catch (\Throwable $e) {
                     $io->error('Playback error: ' . $e->getMessage());
+                    // Discard pre-generated DJ clip since track changed
+                    if ($this->preGeneratedDjUrl !== null) {
+                        $this->tts->delete($this->preGeneratedDjUrl);
+                        $this->preGeneratedDjUrl  = null;
+                        $this->preGeneratedDjText = null;
+                        $this->preGeneratedDjType = 'between_tracks';
+                    }
                     sleep(10);
                     $nextTrack     = $this->pickTrack($io);
                     $nextNextTrack = $nextTrack ? $this->pickTrack($io, [$nextTrack['id']]) : null;
@@ -544,32 +544,36 @@ class RadioStartCommand extends Command
             $nextTrack     = $nextNextTrack;
             $nextNextTrack = $nextTrack ? $this->pickTrack($io, [$nextTrack['id']]) : null;
 
-            $this->tracksSinceDj++;
-            $djDue = $this->tracksSinceDj >= $this->djEveryNTracks && $nextTrack;
-            if ($djDue) {
-                $this->tracksSinceDj  = 0;
-                $this->djEveryNTracks = random_int(2, 3);
+            // Generate DJ clip for the NEXT track NOW (during current track playback)
+            // so it's ready when the current track ends. No blocking wait later.
+            $djDue = false;
+            if ($nextTrack !== null) {
+                $this->tracksSinceDj++;
+                $djDue = $this->tracksSinceDj >= $this->djEveryNTracks;
+                if ($djDue) {
+                    $this->tracksSinceDj  = 0;
+                    $this->djEveryNTracks = random_int(2, 3);
+                    // Generate DJ clip asynchronously (non-blocking fire-and-forget via background process)
+                    // For now, generate synchronously but early - during current track playback
+                    [$this->preGeneratedDjText, $this->preGeneratedDjUrl, $this->preGeneratedDjType] =
+                        $this->pregenerateDjAnnouncement($nextTrack, $io);
+                }
             }
 
-            // Pass nextTrack only when no DJ is planned — then waitForTrackToEnd() will
-            // pre-queue it on Sonos UPnP so the transition is seamless.
-            // When a DJ is due, pass a callback so pregeneration runs inside the wait loop
-            // at the 90-second mark — giving the full track duration to generate instead of
-            // blocking here right after the track started.
-            $djCallback = $djDue ? function () use ($nextTrack, $io, &$nextDjText, &$nextDjUrl, &$nextDjType): void {
-                [$nextDjText, $nextDjUrl, $nextDjType] = $this->pregenerateDjAnnouncement($nextTrack, $io);
-            } : null;
-
-            // Only pre-queue on Sonos when no DJ is planned at all (neither already generated
-            // nor scheduled via callback). If a DJ callback is set, it fires at the 90s mark
-            // *inside* waitForTrackToEnd — after this condition is already evaluated — so
-            // passing nextTrack here would pre-queue the song AND generate a DJ for it, putting
-            // the loop in an impossible state where wasPreQueued=true and nextDjUrl is set.
-            $canPreQueue = $nextDjUrl === null && $djCallback === null;
-            $this->waitForTrackToEnd($io, $canPreQueue ? $nextTrack : null, $wasPreQueued, $djCallback);
+            // Pre-queue next track on Sonos UPnP for seamless transition
+            // (only when no DJ clip is coming up, since DJ clips use SetAVTransportURI which clears the queue)
+            $canPreQueue = !$djDue && $nextTrack !== null;
+            $this->waitForTrackToEnd($io, $canPreQueue ? $nextTrack : null, $wasPreQueued);
 
             if ($this->skipCurrent) {
-                $wasPreQueued      = false; // always start next track explicitly after a skip
+                // Discard pre-generated DJ clip — skip means nextTrack becomes current track
+                if ($this->preGeneratedDjUrl !== null) {
+                    $this->tts->delete($this->preGeneratedDjUrl);
+                    $this->preGeneratedDjUrl  = null;
+                    $this->preGeneratedDjText = null;
+                    $this->preGeneratedDjType = 'between_tracks';
+                }
+                $wasPreQueued      = false;
                 $this->skipCurrent = false;
             }
 
@@ -826,7 +830,7 @@ class RadioStartCommand extends Command
         ));
     }
 
-    /** Generate DJ text + TTS during track playback so it's ready with no gap. */
+    /** Generate DJ text + TTS for the next track. Called early during current track playback. */
     private function pregenerateDjAnnouncement(array $track, SymfonyStyle $io): array
     {
         try {
@@ -847,6 +851,8 @@ class RadioStartCommand extends Command
             ));
 
             $audioUrl = $this->tts->generate($djText);
+
+            $io->writeln('<comment>DJ clip klaar voor: ' . $track['title'] . '</comment>');
 
             return [$djText, $audioUrl, $type];
         } catch (\Throwable $e) {
@@ -1698,11 +1704,10 @@ class RadioStartCommand extends Command
         $this->skipCurrent = false;
     }
 
-    private function waitForTrackToEnd(SymfonyStyle $io, ?array $nextTrack = null, bool &$preQueued = false, ?callable $djCallback = null): void
+    private function waitForTrackToEnd(SymfonyStyle $io, ?array $nextTrack = null, bool &$preQueued = false): void
     {
-        $djCallbackFired = false;
-        $wasPlaying      = false;
-        $graceRetries    = 0;
+        $wasPlaying   = false;
+        $graceRetries = 0;
 
         while ($this->running && !$this->skipCurrent) {
             $this->checkSignals();
@@ -1756,8 +1761,6 @@ class RadioStartCommand extends Command
                     }
                     $wasPlaying = true;
                     $graceRetries = 0;
-                    // Sonos API may return 0 duration for Spotify streams — skip
-                    // remaining calculation and wait for is_playing to become false.
                     if ($playback['duration_ms'] > 0) {
                         $remaining = ($playback['duration_ms'] - $playback['progress_ms']) / 1000;
                     }
@@ -1793,14 +1796,7 @@ class RadioStartCommand extends Command
                     }
                 }
 
-                if (!$djCallbackFired && $djCallback !== null && isset($remaining) && $remaining <= 90) {
-                    $djCallbackFired = true;
-                    ($djCallback)();
-                }
-
                 if (isset($remaining) && $remaining <= 3 && !$this->paused) {
-                    // Confirm the track has actually stopped to avoid the DJ clip
-                    // overlapping the tail of the current song.
                     $confirmEnd = microtime(true) + 3;
                     while (microtime(true) < $confirmEnd && $this->running && !$this->skipCurrent) {
                         try {
@@ -1828,11 +1824,6 @@ class RadioStartCommand extends Command
                 }
                 usleep(1_000_000);
             }
-        }
-
-        // Track ended before the 90s mark (very short song or early break) — generate now
-        if (!$djCallbackFired && $djCallback !== null) {
-            ($djCallback)();
         }
     }
 }
