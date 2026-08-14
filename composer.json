@@ -58,11 +58,11 @@
     "scripts": {
         "post-install-cmd": [
             "php bin/console cache:clear --no-warmup",
-            "php bin/console assets:install --symlink --relative %PUBLIC_DIR%"
+            "php bin/console assets:install --symlink --relative public"
         ],
         "post-update-cmd": [
             "php bin/console cache:clear --no-warmup",
-            "php bin/console assets:install --symlink --relative %PUBLIC_DIR%"
+            "php bin/console assets:install --symlink --relative public"
         ]
     },
     "conflict": {
