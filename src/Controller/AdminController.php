@@ -7,6 +7,7 @@ use App\Entity\Playlist;
 use App\Repository\ColleagueRepository;
 use App\Repository\PlaylistRepository;
 use App\Repository\SongRequestRepository;
+use App\Repository\ThemeVoteRepository;
 use App\Repository\UserRepository;
 use App\Service\RadioStateService;
 use App\Service\RemoteRadioService;
@@ -35,12 +36,34 @@ class AdminController extends AbstractController
         private SonosService $sonos,
         private SonosApiService $sonosApi,
         private SpotifyService $spotify,
+        private ThemeVoteRepository $themeVoteRepository,
     ) {}
 
     #[Route('', name: 'app_admin_dashboard')]
     public function dashboard(): Response
     {
         ['volume' => $volume, 'backend' => $backend] = $this->fetchVolume();
+
+        // Theme Thursday status
+        $now = new \DateTimeImmutable('now', new \DateTimeZone('Europe/Amsterdam'));
+        $monday = $now->modify('monday this week')->format('Y-m-d');
+        $dayOfWeek = (int) $now->format('N');
+
+        $isVotingOpen = $dayOfWeek >= 1 && $dayOfWeek <= 3;
+        $isThursday = $dayOfWeek === 4;
+
+        $counts = $this->themeVoteRepository->getVoteCounts($monday);
+        $winner = null;
+        if (!empty($counts)) {
+            $winner = $counts[0]['theme'];
+        }
+
+        $maxVotes = 0;
+        foreach ($counts as $c) {
+            if ($c['votes'] > $maxVotes) {
+                $maxVotes = $c['votes'];
+            }
+        }
 
         return $this->render('admin/index.html.twig', [
             'volume'            => $volume,
@@ -52,6 +75,15 @@ class AdminController extends AbstractController
             'soccer_start'      => $this->getSoccerDate('start'),
             'soccer_end'        => $this->getSoccerDate('end'),
             'users'             => $this->userRepository->findAll(),
+            'theme_vote' => [
+                'week' => $monday,
+                'day_of_week' => $dayOfWeek,
+                'is_open' => $isVotingOpen,
+                'is_thursday' => $isThursday,
+                'winner' => $winner,
+                'counts' => $counts,
+                'max_votes' => $maxVotes,
+            ],
         ]);
     }
 
@@ -482,10 +514,12 @@ class AdminController extends AbstractController
     public function playlists(PlaylistRepository $repo): JsonResponse
     {
         return new JsonResponse(array_map(fn(Playlist $p) => [
-            'id'        => $p->getId(),
-            'spotifyId' => $p->getSpotifyId(),
-            'label'     => $p->getLabel(),
-            'active'    => $p->isActive(),
+            'id'                    => $p->getId(),
+            'spotifyId'             => $p->getSpotifyId(),
+            'label'                 => $p->getLabel(),
+            'active'                => $p->isActive(),
+            'themeThursday'         => $p->isThemeThursday(),
+            'themeThursdayTitle'    => $p->getThemeThursdayTitle(),
         ], $repo->findBy([], ['sortOrder' => 'ASC', 'id' => 'ASC'])));
     }
 
@@ -495,6 +529,8 @@ class AdminController extends AbstractController
         $data      = json_decode($request->getContent(), true);
         $spotifyId = trim($data['spotifyId'] ?? '');
         $label     = trim($data['label'] ?? '');
+        $themeThursday = (bool)($data['themeThursday'] ?? false);
+        $themeThursdayTitle = trim($data['themeThursdayTitle'] ?? '');
 
         if ($spotifyId === '' || $label === '') {
             return new JsonResponse(['error' => 'spotifyId and label are required'], 400);
@@ -510,14 +546,20 @@ class AdminController extends AbstractController
             ->getQuery()->getSingleScalarResult();
 
         $playlist = new Playlist($spotifyId, $label, $maxOrder + 1);
+        $playlist->setThemeThursday($themeThursday);
+        if ($themeThursdayTitle !== '') {
+            $playlist->setThemeThursdayTitle($themeThursdayTitle);
+        }
         $em->persist($playlist);
         $em->flush();
 
         return new JsonResponse([
-            'id'        => $playlist->getId(),
-            'spotifyId' => $playlist->getSpotifyId(),
-            'label'     => $playlist->getLabel(),
-            'active'    => $playlist->isActive(),
+            'id'                    => $playlist->getId(),
+            'spotifyId'             => $playlist->getSpotifyId(),
+            'label'                 => $playlist->getLabel(),
+            'active'                => $playlist->isActive(),
+            'themeThursday'         => $playlist->isThemeThursday(),
+            'themeThursdayTitle'    => $playlist->getThemeThursdayTitle(),
         ], 201);
     }
 
@@ -549,6 +591,33 @@ class AdminController extends AbstractController
         return new JsonResponse(['ok' => true, 'active' => $playlist->isActive()]);
     }
 
+    #[Route('/api/playlists/{id}/theme-thursday', name: 'app_admin_playlist_theme_thursday', methods: ['POST'])]
+    public function playlistThemeThursday(int $id, Request $request, PlaylistRepository $repo, EntityManagerInterface $em): JsonResponse
+    {
+        $playlist = $repo->find($id);
+        if (!$playlist) {
+            return new JsonResponse(['error' => 'Not found'], 404);
+        }
+
+        $data = json_decode($request->getContent(), true);
+        $themeThursday = (bool)($data['themeThursday'] ?? false);
+        $themeThursdayTitle = trim($data['themeThursdayTitle'] ?? '');
+
+        $playlist->setThemeThursday($themeThursday);
+        if ($themeThursdayTitle !== '') {
+            $playlist->setThemeThursdayTitle($themeThursdayTitle);
+        } elseif (!$themeThursday) {
+            $playlist->setThemeThursdayTitle(null);
+        }
+        $em->flush();
+
+        return new JsonResponse([
+            'ok' => true,
+            'themeThursday' => $playlist->isThemeThursday(),
+            'themeThursdayTitle' => $playlist->getThemeThursdayTitle(),
+        ]);
+    }
+
     #[Route('/api/playlists/search', name: 'app_admin_playlist_search', methods: ['POST'])]
     public function playlistSearch(Request $request): JsonResponse
     {
@@ -565,6 +634,83 @@ class AdminController extends AbstractController
         } catch (\Throwable $e) {
             return new JsonResponse(['error' => $e->getMessage(), 'results' => []], 500);
         }
+    }
+
+    // ── Theme Thursday ────────────────────────────────────────────────────────
+
+    #[Route('/api/theme-vote/status', name: 'app_admin_theme_vote_status', methods: ['GET'])]
+    public function themeVoteStatus(): JsonResponse
+    {
+        $now = new \DateTimeImmutable('now', new \DateTimeZone('Europe/Amsterdam'));
+        $monday = $now->modify('monday this week')->format('Y-m-d');
+        $dayOfWeek = (int) $now->format('N');
+
+        $counts = $this->themeVoteRepository->getVoteCounts($monday);
+        $isOpen = $dayOfWeek >= 1 && $dayOfWeek <= 3;
+        $isThursday = $dayOfWeek === 4;
+
+        $winner = null;
+        if (!empty($counts)) {
+            $winner = $counts[0]['theme'];
+        }
+
+        return new JsonResponse([
+            'week' => $monday,
+            'day_of_week' => $dayOfWeek,
+            'is_open' => $isOpen,
+            'is_thursday' => $isThursday,
+            'winner' => $winner,
+            'counts' => $counts,
+        ]);
+    }
+
+    #[Route('/api/theme-vote/open', name: 'app_admin_theme_vote_open', methods: ['POST'])]
+    public function themeVoteOpen(Request $request): JsonResponse
+    {
+        $now = new \DateTimeImmutable('now', new \DateTimeZone('Europe/Amsterdam'));
+        $dayOfWeek = (int) $now->format('N');
+        $force = $request->getPayload()->getBoolean('force', false);
+
+        if (!$force && ($dayOfWeek < 1 || $dayOfWeek > 3)) {
+            return new JsonResponse(['error' => 'Voting can only be opened Monday-Wednesday'], 400);
+        }
+
+        $monday = $now->modify('monday this week')->format('Y-m-d');
+
+        $existing = $this->themeVoteRepository->getVoteCounts($monday);
+        if (!empty($existing)) {
+            return new JsonResponse(['error' => 'Voting already open for this week', 'week' => $monday], 400);
+        }
+
+        return new JsonResponse(['success' => true, 'week' => $monday, 'message' => 'Theme Thursday voting opened']);
+    }
+
+    #[Route('/api/theme-vote/close', name: 'app_admin_theme_vote_close', methods: ['POST'])]
+    public function themeVoteClose(Request $request): JsonResponse
+    {
+        $now = new \DateTimeImmutable('now', new \DateTimeZone('Europe/Amsterdam'));
+        $dayOfWeek = (int) $now->format('N');
+        $force = $request->getPayload()->getBoolean('force', false);
+
+        if (!$force && $dayOfWeek !== 3) {
+            return new JsonResponse(['error' => 'Voting should be closed on Wednesday'], 400);
+        }
+
+        $monday = $now->modify('monday this week')->format('Y-m-d');
+
+        $counts = $this->themeVoteRepository->getVoteCounts($monday);
+        if (empty($counts)) {
+            return new JsonResponse(['success' => true, 'winner' => null, 'message' => 'No votes cast this week']);
+        }
+
+        $winner = $counts[0]['theme'];
+
+        return new JsonResponse([
+            'success' => true,
+            'week' => $monday,
+            'winner' => $winner,
+            'counts' => $counts,
+        ]);
     }
 
     /**

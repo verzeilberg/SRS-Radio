@@ -25,4 +25,21 @@ class PlaylistRepository extends ServiceEntityRepository
             'label' => $p->getLabel(),
         ], $playlists);
     }
+
+    /** Returns active playlists tagged for Theme Thursday. */
+    public function findThemeThursday(): array
+    {
+        $playlists = $this->createQueryBuilder('p')
+            ->andWhere('p.active = true')
+            ->andWhere('p.themeThursday = true')
+            ->orderBy('p.sortOrder', 'ASC')
+            ->addOrderBy('p.id', 'ASC')
+            ->getQuery()
+            ->getResult();
+
+        return array_map(fn(Playlist $p) => [
+            'id'    => $p->getSpotifyId(),
+            'label' => $p->getLabel(),
+        ], $playlists);
+    }
 }

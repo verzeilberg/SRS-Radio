@@ -24,6 +24,12 @@ class Playlist
     #[ORM\Column]
     private int $sortOrder = 0;
 
+    #[ORM\Column]
+    private bool $themeThursday = false;
+
+    #[ORM\Column(length: 100, nullable: true)]
+    private ?string $themeThursdayTitle = null;
+
     public function __construct(string $spotifyId, string $label, int $sortOrder = 0)
     {
         $this->spotifyId  = $spotifyId;
@@ -36,8 +42,12 @@ class Playlist
     public function getLabel(): string { return $this->label; }
     public function isActive(): bool { return $this->active; }
     public function getSortOrder(): int { return $this->sortOrder; }
+    public function isThemeThursday(): bool { return $this->themeThursday; }
+    public function getThemeThursdayTitle(): ?string { return $this->themeThursdayTitle; }
 
     public function setLabel(string $label): void { $this->label = $label; }
     public function setActive(bool $active): void { $this->active = $active; }
     public function setSortOrder(int $order): void { $this->sortOrder = $order; }
+    public function setThemeThursday(bool $themeThursday): void { $this->themeThursday = $themeThursday; }
+    public function setThemeThursdayTitle(?string $themeThursdayTitle): void { $this->themeThursdayTitle = $themeThursdayTitle; }
 }

@@ -25,7 +25,7 @@ class DjScriptService
                     'Content-Type'  => 'application/json',
                 ],
                 'json' => [
-                    'model'       => 'llama-3.3-70b-versatile',
+                    'model'       => 'llama-3.1-70b-versatile',
                     'messages'    => [
                         ['role' => 'user', 'content' => $prompt],
                     ],
@@ -98,6 +98,14 @@ class DjScriptService
         $artist = $ctx->artist;
 
         return "{$base}\n\nThis next track is a special request! {$from} asked us to play \"{$track}\" by {$artist}. Give it a warm, enthusiastic shout-out — mention {$from} by name and build up the track. Max 2-3 sentences.";
+    }
+
+    private function buildThemeDayPrompt(string $base, DjContext $ctx): string
+    {
+        $theme = $ctx->theme ?? 'a special theme';
+        $lang = $this->language === 'nl' ? 'Dutch' : 'English';
+
+        return "{$base}\n\nIt's Theme Thursday! Today's theme is **{$theme}**. Announce this enthusiastically to kick off the day — make it sound like a special radio event. Mention that all day long we'll be playing {$theme} music. Max 2-3 sentences. Respond in {$lang}.";
     }
 
     private function buildListenerNotePrompt(string $base, DjContext $ctx): string
@@ -229,6 +237,8 @@ class DjScriptService
             'alarm' => $this->buildAlarmPrompt($base, $ctx),
 
             'ranking' => $this->appendSongAnnouncement($this->buildRankingPrompt($base, $ctx), $ctx),
+
+            'theme_day' => $this->appendSongAnnouncement($this->buildThemeDayPrompt($base, $ctx), $ctx),
 
             'listener_note' => $this->buildListenerNotePrompt($base, $ctx),
 

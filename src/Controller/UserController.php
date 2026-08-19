@@ -4,6 +4,7 @@ namespace App\Controller;
 
 use App\Entity\SongRequest;
 use App\Repository\SongRequestRepository;
+use App\Repository\ThemeVoteRepository;
 use App\Service\RadioStateService;
 use App\Service\SpotifyService;
 use Doctrine\ORM\EntityManagerInterface;
@@ -18,9 +19,42 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 class UserController extends AbstractController
 {
     #[Route('/dashboard', name: 'app_user_dashboard')]
-    public function dashboard(): Response
+    public function dashboard(ThemeVoteRepository $themeVoteRepository): Response
     {
-        return $this->render('user/dashboard.html.twig');
+        $now = new \DateTimeImmutable('now', new \DateTimeZone('Europe/Amsterdam'));
+        $monday = $now->modify('monday this week')->format('Y-m-d');
+        $dayOfWeek = (int) $now->format('N');
+
+        $isVotingOpen = $dayOfWeek >= 1 && $dayOfWeek <= 3; // Mon-Wed
+        $isThursday = $dayOfWeek === 4;
+
+        $counts = $themeVoteRepository->getVoteCounts($monday);
+        $hasVoted = $themeVoteRepository->hasVoted($monday, $this->getUser()->getDisplayName());
+
+        $winner = null;
+        if (!empty($counts)) {
+            $winner = $counts[0]['theme'];
+        }
+
+        $maxVotes = 0;
+        foreach ($counts as $c) {
+            if ($c['votes'] > $maxVotes) {
+                $maxVotes = $c['votes'];
+            }
+        }
+
+        return $this->render('user/dashboard.html.twig', [
+            'theme_vote' => [
+                'week' => $monday,
+                'day_of_week' => $dayOfWeek,
+                'is_open' => $isVotingOpen,
+                'is_thursday' => $isThursday,
+                'has_voted' => $hasVoted,
+                'winner' => $winner,
+                'counts' => $counts,
+                'max_votes' => $maxVotes,
+            ],
+        ]);
     }
 
     // ── Listener notes ──────────────────────────────────────────────────────
@@ -87,6 +121,74 @@ class UserController extends AbstractController
         $em->flush();
 
         return new JsonResponse(['ok' => true, 'id' => $songRequest->getId()]);
+    }
+
+    // ── Theme Thursday voting ──────────────────────────────────────────────────
+
+    #[Route('/api/theme-vote', name: 'app_theme_vote', methods: ['POST'])]
+    public function themeVote(Request $request, ThemeVoteRepository $themeVoteRepository, EntityManagerInterface $em): JsonResponse
+    {
+        $now = new \DateTimeImmutable('now', new \DateTimeZone('Europe/Amsterdam'));
+        $dayOfWeek = (int) $now->format('N');
+        $monday = $now->modify('monday this week')->format('Y-m-d');
+
+        if ($dayOfWeek < 1 || $dayOfWeek > 3) {
+            return new JsonResponse(['error' => 'Voting is only open Monday–Wednesday'], 400);
+        }
+
+        $data = json_decode($request->getContent(), true);
+        $theme = trim($data['theme'] ?? '');
+
+        if ($theme === '') {
+            return new JsonResponse(['error' => 'Theme is required'], 400);
+        }
+
+        // Validate theme against allowed list
+        $allowedThemes = ['80s', '90s', '00s', 'Dance', 'Rock', 'Dutch', 'Soul', 'Disco', 'House', 'Techno'];
+        if (!in_array($theme, $allowedThemes, true)) {
+            return new JsonResponse(['error' => 'Invalid theme'], 400);
+        }
+
+        $voter = $this->getUser()->getDisplayName();
+
+        if ($themeVoteRepository->hasVoted($monday, $voter)) {
+            return new JsonResponse(['error' => 'You have already voted this week'], 400);
+        }
+
+        $vote = new \App\Entity\ThemeVote($theme, new \DateTimeImmutable($monday), $voter);
+        $em->persist($vote);
+        $em->flush();
+
+        return new JsonResponse(['ok' => true, 'theme' => $theme, 'message' => 'Vote recorded!']);
+    }
+
+    #[Route('/api/theme-vote/status', name: 'app_theme_vote_status_user', methods: ['GET'])]
+    public function themeVoteStatusUser(ThemeVoteRepository $themeVoteRepository): JsonResponse
+    {
+        $now = new \DateTimeImmutable('now', new \DateTimeZone('Europe/Amsterdam'));
+        $monday = $now->modify('monday this week')->format('Y-m-d');
+        $dayOfWeek = (int) $now->format('N');
+
+        $isVotingOpen = $dayOfWeek >= 1 && $dayOfWeek <= 3;
+        $isThursday = $dayOfWeek === 4;
+
+        $counts = $themeVoteRepository->getVoteCounts($monday);
+        $hasVoted = $themeVoteRepository->hasVoted($monday, $this->getUser()->getDisplayName());
+
+        $winner = null;
+        if (!empty($counts)) {
+            $winner = $counts[0]['theme'];
+        }
+
+        return new JsonResponse([
+            'week' => $monday,
+            'day_of_week' => $dayOfWeek,
+            'is_open' => $isVotingOpen,
+            'is_thursday' => $isThursday,
+            'has_voted' => $hasVoted,
+            'winner' => $winner,
+            'counts' => $counts,
+        ]);
     }
 
     #[Route('/api/my-song-requests', name: 'app_my_song_requests', methods: ['GET'])]

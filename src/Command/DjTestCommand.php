@@ -21,7 +21,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 #[AsCommand(name: 'radio:dj-test', description: 'Test a DJ announcement immediately')]
 class DjTestCommand extends Command
 {
-    private const VALID_TYPES = ['between_tracks', 'morning', 'lunch', 'afternoon', 'friday_afternoon', 'end_of_day', 'weather'];
+    private const VALID_TYPES = ['between_tracks', 'morning', 'lunch', 'afternoon', 'friday_afternoon', 'end_of_day', 'weather', 'theme_day'];
 
     public function __construct(
         private DjScriptService $djService,

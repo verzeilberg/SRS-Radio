@@ -506,6 +506,7 @@
             <button class="tab-btn active" onclick="switchTab('on-air')">On Air</button>
             <button class="tab-btn" onclick="switchTab('send-note')">Send a note</button>
             <button class="tab-btn" onclick="switchTab('request')">Request a song</button>
+            <button class="tab-btn" onclick="switchTab('theme-vote')">Theme Thursday</button>
         </div>
 
         <div class="tab-panel active" id="tab-on-air">
@@ -579,6 +580,100 @@
                 </div>
             </div>
         </div>
+
+        <div class="tab-panel" id="tab-theme-vote">
+            <div class="card">
+                <div class="card-title">Theme Thursday</div>
+
+                {% if theme_vote.is_thursday %}
+                    <div style="text-align:center;padding:1rem">
+                        <div style="font-size:2.5rem;margin-bottom:.5rem">🎭</div>
+                        <div style="font-size:1.2rem;font-weight:700;color:#b47fff">
+                            {% if theme_vote.winner %}
+                                This Thursday: <span style="color:#fff">{{ theme_vote.winner }}</span>
+                            {% else %}
+                                No theme voted this week
+                            {% endif %}
+                        </div>
+                        <div style="color:#6b5a8a;margin-top:.5rem;font-size:.85rem">
+                            The radio will play {{ theme_vote.winner ? theme_vote.winner|lower : 'normal playlists' }} all day!
+                        </div>
+                    </div>
+                {% elseif theme_vote.is_open %}
+                    <div id="vote-status">
+                        {% if theme_vote.has_voted %}
+                            <div style="background:rgba(134,239,172,.1);border:1px solid #2e7d52;border-radius:8px;padding:1rem;text-align:center;color:#86efac">
+                                ✅ You voted for <strong>{{ theme_vote.counts|length ? theme_vote.counts[0].theme : '' }}</strong>
+                            </div>
+                        {% else %}
+                            <p style="color:#6b5a8a;margin-bottom:1rem;font-size:.9rem">
+                                Vote for this Thursday's theme! Voting closes Wednesday.
+                            </p>
+                            <div id="theme-options" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:.5rem">
+                                {% for theme in ['80s','90s','00s','Dance','Rock','Dutch','Soul','Disco','House','Techno'] %}
+                                    <button type="button"
+                                            class="theme-btn"
+                                            data-theme="{{ theme }}"
+                                            style="padding:.75rem;border:2px solid #2a2a4a;border-radius:8px;background:#0a0a1a;color:#fff;font-family:'Raleway',sans-serif;font-size:.8rem;font-weight:700;letter-spacing:.05em;cursor:pointer;transition:all .2s"
+                                            onmouseover="this.style.borderColor='#5b21b6';this.style.background='#14142b'"
+                                            onmouseout="this.style.borderColor='#2a2a4a';this.style.background='#0a0a1a'"
+                                            onclick="voteTheme('{{ theme }}')">
+                                        {{ theme }}
+                                    </button>
+                                {% endfor %}
+                            </div>
+                            <div id="vote-feedback" style="margin-top:.75rem;font-size:.85rem;font-weight:700;text-align:center;min-height:1.2rem"></div>
+                        {% endif %}
+                    </div>
+                    <div style="margin-top:1rem;padding:.75rem;background:#0a0a1a;border:1px solid #1e1e35;border-radius:8px">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem">
+                            <strong style="color:#b47fff;font-size:.8rem">Current standings</strong>
+                            <span id="total-votes" style="font-size:.7rem;color:#4a3a6a">
+                                {% set total = theme_vote.counts|reduce((a,b) => a+b.votes, 0) %}
+                                {{ total }} vote{{ total != 1 ? 's' : '' }} total
+                            </span>
+                        </div>
+                        {% set allThemes = ['80s','90s','00s','Dance','Rock','Dutch','Soul','Disco','House','Techno'] %}
+                        {% set voteMap = {} %}
+                        {% for c in theme_vote.counts %}
+                            {% set voteMap = voteMap|merge({(c.theme): c.votes}) %}
+                        {% endfor %}
+                        <div id="vote-chart" style="display:flex;flex-direction:column;gap:.4rem">
+                            {% set maxVotes = theme_vote.max_votes %}
+                            {% for theme in allThemes %}
+                                {% set votes = voteMap[theme] ?? 0 %}
+                                {% set pct = maxVotes > 0 ? (votes / maxVotes * 100) : 0 %}
+                                {% set isLeader = votes == maxVotes and maxVotes > 0 %}
+                                <div class="vote-bar-row" style="display:flex;align-items:center;gap:.75rem;opacity:{{ votes > 0 or isLeader ? 1 : 0.5 }}">
+                                    <span class="vote-bar-label" style="width:50px;font-size:.75rem;font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap">{{ theme }}</span>
+                                    <div class="vote-bar-track" style="flex:1;height:24px;background:#0a0a1a;border:1px solid #2a2a4a;border-radius:12px;overflow:hidden;position:relative">
+                                        {% if pct > 0 %}
+                                            <div class="vote-bar-fill"
+                                                 style="height:100%;width:{{ pct }}%;background:linear-gradient(90deg,#5b21b6,#b47fff);border-radius:12px;transition:width .5s ease;display:flex;align-items:center;justify-content:flex-end;padding-right:.5rem;box-sizing:border-box">
+                                                <span class="vote-count" style="font-size:.7rem;font-weight:700;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.5);white-space:nowrap">{{ votes }}</span>
+                                            </div>
+                                        {% endif %}
+                                        {% if theme_vote.has_voted and theme == theme_vote.counts[0].theme %}
+                                            <span class="vote-winner-badge" style="position:absolute;right:2px;top:50%;transform:translateY(-50%);font-size:.55rem;font-weight:700;color:#b47fff;background:rgba(180,120,255,.2);padding:.1rem .35rem;border-radius:4px;letter-spacing:.05em">YOURS</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                {% else %}
+                    <div style="text-align:center;padding:1.5rem;color:#4a3a6a">
+                        <div style="font-size:2rem;margin-bottom:.5rem">🗓️</div>
+                        <div style="font-weight:700;margin-bottom:.25rem">Voting closed</div>
+                        <div style="font-size:.85rem">
+                            Voting opens Monday for next Thursday.
+                            {% if theme_vote.winner %}
+                                <div style="margin-top:.5rem;color:#b47fff">This week's theme: <strong>{{ theme_vote.winner }}</strong></div>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
     </main>
 
     <script>
@@ -590,6 +685,66 @@
                 p.classList.toggle('active', p.id === 'tab-' + id);
             });
         }
+
+        /* ── Theme Thursday voting ── */
+        async function voteTheme(theme) {
+            const feedback = document.getElementById('vote-feedback');
+            const buttons = document.querySelectorAll('.theme-btn');
+
+            buttons.forEach(b => { b.disabled = true; b.style.opacity = '0.5'; });
+            feedback.textContent = 'Submitting vote…';
+            feedback.style.color = '#f59e0b';
+
+            try {
+                const res = await fetch('{{ path('app_theme_vote') }}', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ theme: theme }),
+                });
+                const data = await res.json();
+
+                if (res.ok) {
+                    feedback.textContent = 'Vote recorded! 🎉';
+                    feedback.style.color = '#86efac';
+                    buttons.forEach(b => {
+                        b.style.borderColor = b.dataset.theme === theme ? '#b47fff' : '#2a2a4a';
+                        b.style.background = b.dataset.theme === theme ? 'rgba(180,120,255,.1)' : '#0a0a1a';
+                    });
+                    // Refresh status
+                    setTimeout(pollThemeVote, 1000);
+                } else {
+                    feedback.textContent = data.error || 'Vote failed';
+                    feedback.style.color = '#fca5a5';
+                    buttons.forEach(b => { b.disabled = false; b.style.opacity = '1'; });
+                }
+            } catch (_) {
+                feedback.textContent = 'Could not reach server';
+                feedback.style.color = '#fca5a5';
+                buttons.forEach(b => { b.disabled = false; b.style.opacity = '1'; });
+            }
+        }
+
+        async function pollThemeVote() {
+            try {
+                const res = await fetch('{{ path('app_theme_vote_status_user') }}');
+                const data = await res.json();
+
+                // If voting closed or Thursday, the page will show different content on next full reload
+                // For now, just update the vote counts if still open
+                if (data.is_open && !data.has_voted) {
+                    const countsDiv = document.querySelector('[style*="Current standings"] + div');
+                    if (countsDiv && data.counts.length) {
+                        countsDiv.innerHTML = '<strong>Current standings:</strong>' +
+                            '<div style="margin-top:.5rem;display:flex;flex-direction:column;gap:.25rem">' +
+                            data.counts.map(c => '<div style="display:flex;justify-content:space-between"><span>' + c.theme + '</span><span style="color:#b47fff;font-weight:700">' + c.votes + ' vote' + (c.votes !== 1 ? 's' : '') + '</span></div>').join('') +
+                            '</div>';
+                    }
+                }
+            } catch (_) {}
+        }
+
+        // Poll theme vote status every 10 seconds when on that tab
+        let themeVotePollInterval;
 
         async function pollNowPlaying() {
             try {

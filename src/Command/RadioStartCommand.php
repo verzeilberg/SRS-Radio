@@ -9,6 +9,7 @@ use App\Repository\ColleagueRepository;
 use App\Repository\DjAnnouncementRepository;
 use App\Repository\PlaylistRepository;
 use App\Repository\SongRequestRepository;
+use App\Repository\ThemeVoteRepository;
 use App\Repository\TrackRepository;
 use App\Service\DjScriptService;
 use App\Service\RadioStateService;
@@ -82,6 +83,7 @@ class RadioStartCommand extends Command
         private NewsService $news,
         private ColleagueRepository $colleagueRepository,
         private PlaylistRepository $playlistRepository,
+        private ThemeVoteRepository $themeVoteRepository,
         private HttpClientInterface $httpClient,
         private string $projectDir,
         private string $spotifyDeviceName = 'PHPSD',
@@ -699,8 +701,20 @@ class RadioStartCommand extends Command
         $recentIds = $this->trackRepository->findSpotifyIdsPlayedSince($since);
         $exclude   = array_merge($recentIds, $excludeIds);
 
+        // Check for Theme Thursday
+        $themeTitle = $this->getActiveThemeTitle();
+        if ($themeTitle) {
+            $pools = $this->playlistRepository->findThemeThursday();
+            if (!empty($pools)) {
+                $io->writeln(sprintf('<info>🎭 Theme Thursday:</info> %s', $themeTitle));
+            } else {
+                $io->warning(sprintf('Geen playlists getagd voor Theme Thursday, val terug op standaard pools.'));
+                $themeTitle = null;
+            }
+        }
+
         // Load active playlists from DB each time so changes take effect without restart
-        $pools = $this->playlistRepository->findActivePools();
+        $pools = $themeTitle ? $pools : $this->playlistRepository->findActivePools();
         shuffle($pools);
 
         // First pass: pick from a pool that still has non-recent tracks
@@ -746,6 +760,20 @@ class RadioStartCommand extends Command
         }
 
         return null;
+    }
+
+    /** Returns the active theme title for Theme Thursday, or null if not Thursday or no theme voted. */
+    private function getActiveThemeTitle(): ?string
+    {
+        $now = new \DateTimeImmutable('now', new \DateTimeZone('Europe/Amsterdam'));
+        if ($now->format('D') !== 'Thu') {
+            return null;
+        }
+
+        $mondayThisWeek = $now->modify('monday this week')->format('Y-m-d');
+        $winningVote = $this->themeVoteRepository->findWinningTheme($mondayThisWeek);
+
+        return $winningVote?->getTheme();
     }
 
     /** Resolve a playlist ID from a pool definition. Supports 'id' (direct) and 'name' (search). */
@@ -870,6 +898,18 @@ class RadioStartCommand extends Command
         $today  = $now->format('Y-m-d');
         $dow    = $now->format('D');
 
+        // Theme Thursday kickoff at 09:00 — check before regular timeEvents
+        if ($dow === 'Thu' && $hour === 9 && $minute >= 0) {
+            $key = 'theme_day@9';
+            if (($this->playedTimeEvents[$key] ?? '') !== $today) {
+                $theme = $this->getActiveTheme();
+                if ($theme) {
+                    $this->playedTimeEvents[$key] = $today;
+                    return $this->playThemeDayAnnouncement($theme, $io, $nextTrack);
+                }
+            }
+        }
+
         $type    = null;
         $typeKey = null;
         foreach ($this->timeEvents as [$eventHour, $eventMinute, $eventDay, $eventType]) {
@@ -901,6 +941,15 @@ class RadioStartCommand extends Command
         if ($type === 'birthday') {
             $this->queueBirthdayAnnouncements($io);
             return false;
+        }
+
+        // Theme Thursday kickoff — plays at 09:00 on Thursday if a theme is active
+        if ($type === 'theme_day') {
+            $theme = $this->getActiveTheme();
+            if (!$theme) {
+                $io->writeln('<comment>[theme_day]</comment> Geen thema voor deze donderdag — overslaan.');
+                return false;
+            }
         }
 
         // WK pool ranking is only announced while the pool is active (both a
@@ -1071,6 +1120,46 @@ class RadioStartCommand extends Command
 
         // Signal the main loop to re-pick rather than resume a pre-queued track
         $this->skipCurrent = true;
+    }
+
+    /** Plays the Theme Thursday kickoff announcement at 09:00. */
+    private function playThemeDayAnnouncement(string $theme, SymfonyStyle $io, ?array $nextTrack = null): bool
+    {
+        try {
+            $io->writeln(sprintf('<comment>[theme_day]</comment> <info>Theme Thursday:</info> %s', $theme));
+
+            $djText = $this->djService->generate(new DjContext(
+                station: 'SRS FM',
+                track: $nextTrack['title'] ?? '',
+                artist: $nextTrack['artist'] ?? '',
+                mood: 'energetic',
+                hour: 9,
+                type: 'theme_day',
+                theme: $theme,
+                recentTexts: $this->djAnnouncementRepository->findRecentTexts('theme_day', 5),
+            ));
+            $io->writeln('<info>DJ:</info> ' . $djText);
+
+            $audioUrl = $this->tts->generate($djText);
+            if (!$this->useSonosForDjClips) {
+                $this->playDjClipViaBrowser($audioUrl, $io);
+            } else {
+                $djDurationMs = (int) ($this->tts->getDuration($audioUrl) * 1000);
+                $this->radioState->setTrack('DJ Sander', 'SRS FM', $djDurationMs);
+                $this->playDjClipViaSonos($audioUrl, $io);
+                $this->skipCurrent = false;
+            }
+            $this->tts->delete($audioUrl);
+
+            $this->em->persist(new DjAnnouncement($djText, $audioUrl, 'theme_day'));
+            $this->em->flush();
+
+            $io->writeln(sprintf('<info>🎭 Theme Thursday kickoff played:</info> %s', $theme));
+            return true;
+        } catch (\Throwable $e) {
+            $io->warning(sprintf('Theme day announcement failed: %s', $e->getMessage()));
+            return false;
+        }
     }
 
     private function playApprovedSongRequest(SymfonyStyle $io): bool
