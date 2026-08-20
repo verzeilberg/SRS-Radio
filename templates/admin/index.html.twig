@@ -2049,9 +2049,6 @@
                 }
             } catch (_) { showToast('Request failed.', true); loadPool(); }
         }
-                }
-            } catch (_) { showToast('Request failed.', true); loadPool(); }
-        }
 
         async function togglePlaylist(id) {
             try {
@@ -2195,8 +2192,8 @@
                 showToast('Failed to delete user', true);
             } finally {
                 btn.disabled = false;
-}
-    }
+            }
+        }
 
         /* ── Theme Thursday ── */
         async function openThemeVote() {
