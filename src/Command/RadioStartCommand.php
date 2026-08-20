@@ -902,7 +902,7 @@ class RadioStartCommand extends Command
         if ($dow === 'Thu' && $hour === 9 && $minute >= 0) {
             $key = 'theme_day@9';
             if (($this->playedTimeEvents[$key] ?? '') !== $today) {
-                $theme = $this->getActiveTheme();
+                $theme = $this->getActiveThemeTitle();
                 if ($theme) {
                     $this->playedTimeEvents[$key] = $today;
                     return $this->playThemeDayAnnouncement($theme, $io, $nextTrack);
@@ -945,7 +945,7 @@ class RadioStartCommand extends Command
 
         // Theme Thursday kickoff — plays at 09:00 on Thursday if a theme is active
         if ($type === 'theme_day') {
-            $theme = $this->getActiveTheme();
+            $theme = $this->getActiveThemeTitle();
             if (!$theme) {
                 $io->writeln('<comment>[theme_day]</comment> Geen thema voor deze donderdag — overslaan.');
                 return false;
