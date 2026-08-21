@@ -1875,12 +1875,25 @@
                 if (!list.length) {
                     tbody.innerHTML = '<tr><td colspan="6" class="req-empty">No requests yet.</td></tr>';
                     document.getElementById('req-pending-count').textContent = '';
+                    knownPendingIds.clear();
                     return;
                 }
 
-                const pending = list.filter(r => r.status === 'pending').length;
+                const pendingRequests = list.filter(r => r.status === 'pending');
+                const pending = pendingRequests.length;
                 document.getElementById('req-pending-count').textContent =
                     pending ? pending + ' pending' : list.length + ' total';
+
+                // Check for new pending requests
+                const currentPendingIds = new Set(pendingRequests.map(r => r.id));
+                const newIds = [...currentPendingIds].filter(id => !knownPendingIds.has(id));
+                if (knownPendingIds.size > 0 && newIds.length > 0) {
+                    newIds.forEach(id => {
+                        const req = pendingRequests.find(r => r.id === id);
+                        if (req) showNotification('New song request', '"' + req.title + '" by ' + req.artist + ' (requested by ' + req.requestedBy + ')');
+                    });
+                }
+                knownPendingIds = currentPendingIds;
 
                 tbody.innerHTML = list.map(r => {
                     const canAct = r.status === 'pending';
@@ -2287,6 +2300,30 @@
         window.addEventListener('scroll', updateActiveLink, { passive: true });
         window.addEventListener('resize', updateActiveLink);
         updateActiveLink();
+
+        /* ── Browser notifications for new song requests ── */
+        let knownPendingIds = new Set();
+
+        async function requestNotificationPermission() {
+            if (!('Notification' in window)) return;
+            if (Notification.permission === 'default') {
+                await Notification.requestPermission();
+            }
+        }
+
+        function showNotification(title, body) {
+            if (!('Notification' in window) || Notification.permission !== 'granted') return;
+            const notif = new Notification(title, {
+                body,
+                icon: '/images/srs-logo.svg',
+                tag: 'song-request',
+                requireInteraction: false,
+            });
+            notif.onclick = () => window.focus();
+            setTimeout(() => notif.close(), 5000);
+        }
+
+        requestNotificationPermission();
 
         // Smooth scroll on click
         function setActiveLink(activeLink) {
