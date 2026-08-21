@@ -10,15 +10,19 @@ An autonomous AI-powered radio station for the office. SRS Radio plays music fro
 - **AI DJ** — generates natural radio-style announcements using Groq (LLaMA 3.3-70B), voiced via Edge TTS, ElevenLabs, or Piper, mixed with optional background bed music
 - **Scheduled segments** — time-triggered announcements: morning (9:00), lunch (12:00), afternoon, Friday wind-down, end of day, weather report, news headlines, WK pool ranking
 - **Birthday announcements** — at 11:00 the station reads out a personalised birthday message, plays a dedicated birthday song, and shows a confetti overlay on the dashboard
+- **Theme Thursday** — weekly voting cycle (Mon–Wed open, Wed close/announce, Thu plays theme all day at 09:00 with DJ kickoff). 10 themes: 80s, 90s, 00s, Dance, Rock, Dutch, Soul, Disco, House, Techno
 - **Jira alarm** — a parallel monitor polls Jira for high-priority tickets and triggers an air-raid siren clip at the next song boundary
 - **Listener song requests** — web UI for colleagues to search Spotify and request songs; admins approve/reject; approved requests are announced and played at the next boundary
 - **Listener notes** — web UI for colleagues to send short messages read out on air by the DJ
 - **Commercial breaks** — place MP3 files in `public/sounds/commercials/` to enable periodic ad breaks (every 4 tracks by default)
 - **Live web dashboard** — real-time now-playing display with EQ visualiser, progress bar, next track, DJ text, album art, Jira alert panel, birthday confetti
 - **Admin dashboard** — start/stop/restart/pause/skip/volume control, remote radio control, playlist pool management, song request moderation, user management, soccer dates, live logs
+- **User dashboard** — song requests, listener notes, Theme Thursday voting
+- **Password reset** — forgot password flow with email link
 - **Colleague management** — web UI to manage colleagues and their birthdays (with photo upload)
 - **Multiple playback backends** — Sonos Cloud API, Sonos UPnP, Spotify Connect, DLNA/UPnP soundbars
 - **Remote radio control** — manage a radio instance on another machine over SSH
+- **Multiple TTS providers** — Edge TTS, ElevenLabs, Piper (configurable via `DJ_TTS_PROVIDER`)
 
 ---
 
@@ -34,6 +38,7 @@ An autonomous AI-powered radio station for the office. SRS Radio plays music fro
 | TTS | Edge TTS · ElevenLabs · Piper |
 | Audio processing | FFmpeg |
 | Web server | Nginx + PHP-FPM |
+| Mail | Symfony Mailer |
 
 ---
 
@@ -127,6 +132,9 @@ REMOTE_RADIO_NAME=
 
 # DLNA soundbar for DJ clips (optional)
 DJ_CLIP_IP=192.168.2.4
+
+# Mail (for password reset)
+MAILER_DSN=smtp://localhost
 ```
 
 ---
@@ -172,9 +180,17 @@ php bin/console jira:monitor
 | `radio:volume [level\|up\|down]` | Get or set volume |
 | `radio:devices` | List available Spotify Connect devices |
 | `radio:dj-test [type]` | Generate and play a test DJ clip |
-| `radio:dj-voices` | List available edge-tts voices |
-| `radio:test-birthday [name]` | Test the full birthday flow |
+| `radio:dj-voices` | List available edge-tts voices (filter with `--lang`) |
+| `radio:test-birthday [name]` | Test the full birthday flow (popup + audio) |
+| `radio:remote [action]` | Control remote radio: `status`, `start`, `stop`, `next` (use `--stop-local` to stop local first) |
+| `radio:sonos-api-debug` | Test Sonos Cloud API connection |
+| `radio:sonos-info` | Show Sonos device info and configured music service accounts |
+| `radio:spotify:login` | Authenticate with Spotify via the console |
+| `app:create-user` | Create a new user (`--admin` for ROLE_ADMIN, `--password` to set) |
 | `jira:monitor` | Start the Jira polling daemon |
+| `theme-vote:open [--force]` | Open Theme Thursday voting for this week (Mon–Wed) |
+| `theme-vote:close [--force]` | Close voting & announce winner (Wed) |
+| `theme-vote:status` | Show current Theme Thursday voting status |
 
 ---
 
@@ -183,7 +199,7 @@ php bin/console jira:monitor
 | Route | Description |
 |---|---|
 | `/` | Live radio dashboard |
-| `/dashboard` | User dashboard (song requests, listener notes) |
+| `/dashboard` | User dashboard (song requests, listener notes, Theme Thursday voting) |
 | `/colleagues` | Add / remove colleagues and birthday dates |
 | `/admin` | Admin dashboard (full control) |
 | `/setup` | Connection status for Spotify / Sonos |
@@ -191,13 +207,17 @@ php bin/console jira:monitor
 | `/spotify/callback` | Spotify OAuth callback |
 | `/sonos/connect` | Sonos OAuth flow |
 | `/sonos/callback` | Sonos OAuth callback |
+| `/forgot-password` | Request password reset link |
+| `/check-email` | Check email for reset link |
+| `/reset-password/{token}` | Reset password via token |
 | `/api/now-playing` | JSON endpoint polled by the dashboard |
 | `/api/jira-tickets` | JSON endpoint for the Jira alert panel |
 | `/api/news-headlines` | News headlines for the dashboard |
-| `/api/listener-note` | POST endpoint to submit a listener note |
+| `/api/listener-notes` | GET: list notes, POST: submit a listener note |
 | `/api/song-search` | Search Spotify for song requests |
-| `/api/song-request` | POST endpoint to submit a song request |
+| `/api/song-request` | POST: submit a song request |
 | `/api/my-song-requests` | Get current user's song requests |
+| `/api/theme-vote` | POST: vote, GET: status |
 
 ---
 
@@ -224,15 +244,19 @@ php bin/console jira:monitor
 | `POST /admin/api/playlists` | Add a playlist to the pool |
 | `DELETE /admin/api/playlists/{id}` | Remove a playlist from the pool |
 | `POST /admin/api/playlists/{id}/toggle` | Activate/deactivate a playlist |
+| `POST /admin/api/playlists/{id}/theme-thursday` | Set Theme Thursday flag/title |
 | `POST /admin/api/playlists/search` | Search Spotify for playlists |
 | `POST /admin/api/soccer` | Set soccer pool dates |
+| `POST /admin/api/user/{id}/name` | Update user display name |
+| `POST /admin/api/user/{id}/delete` | Delete user |
+| `POST /admin/api/user/{id}/toggle-role` | Toggle ROLE_ADMIN |
 
 ---
 
 ## How it works
 
 1. `radio:start` enters a loop: pick track → play via Sonos/Spotify → poll progress → near end, generate next DJ clip (Groq → TTS → FFmpeg mix) → play clip → repeat
-2. Scheduled events (weather, news, birthdays) are checked each iteration and injected at the next song boundary
+2. Scheduled events (weather, news, birthdays, Theme Thursday) are checked each iteration and injected at the next song boundary
 3. `jira:monitor` runs in parallel, writing `var/jira-alarm.json` when a new critical ticket appears; the main loop reads and plays the siren
 4. The web dashboard polls `/api/now-playing` every second near end-of-track and every 5 seconds otherwise; it plays DJ clips as an `<audio>` element with smooth volume ramping
 5. Inter-process communication uses PID files (`var/radio.pid`) and JSON state files (`var/radio-state.json`)
@@ -253,7 +277,8 @@ php bin/console jira:monitor
 | `SongRequest` | Listener song requests with approval workflow |
 | `ResetPasswordRequest` | Password reset tokens |
 | `User` | Web UI users with roles (ROLE_USER, ROLE_ADMIN) |
-| `Playlist` | Spotify playlist pools for track selection |
+| `Playlist` | Spotify playlist pools for track selection (supports `themeThursday` + `themeThursdayTitle`) |
+| `ThemeVote` | Weekly Theme Thursday voting records |
 
 ```bash
 # Apply migrations
@@ -276,12 +301,12 @@ Validates PHP extensions, external tools, database connection, environment varia
 
 ```
 src/
-├── Command/           # Console commands (radio:*, jira:monitor)
-├── Controller/        # Web controllers (Radio, Admin, User, Colleague, Auth)
+├── Command/           # Console commands (radio:*, jira:monitor, theme-vote:*, app:create-user)
+├── Controller/        # Web controllers (Radio, Admin, User, Colleague, Auth, Setup)
 ├── DTO/               # Data transfer objects (DjContext)
 ├── Entity/            # Doctrine entities
 ├── Repository/        # Doctrine repositories
-├── Service/           # Core services (Spotify, Sonos, DJ, TTS, Weather, News, Jira, etc.)
+├── Service/           # Core services (Spotify, Sonos, DJ, TTS, Weather, News, Jira, RemoteRadio, RadioState)
 ├── Kernel.php
 public/
 ├── sounds/
@@ -315,6 +340,7 @@ var/
 - **DJ frequency**: `$djEveryNTracks` (default 2–3) and `$commercialsEveryNTracks` (default 4) in `RadioStartCommand`
 - **Playlist pools**: Manage via `/admin` or add `Playlist` entities directly
 - **TTS providers**: Switch via `DJ_TTS_PROVIDER` env var; add new providers in `TextToSpeechService::generateVoice()`
+- **Theme Thursday themes**: Edit `$allowedThemes` in `UserController::themeVote()` and `RadioStartCommand::getActiveThemeTitle()`
 
 ---
 
@@ -329,3 +355,24 @@ var/
 | `edge-tts` not found | `pip3 install edge-tts` and ensure it's in PATH |
 | Database connection failed | Check `DATABASE_URL` in `.env.local`, ensure MySQL is running |
 | Volume control not working | Some Spotify Connect devices don't support volume API; falls back to hardware |
+| Password reset emails not sent | Configure `MAILER_DSN` in `.env.local` |
+
+---
+
+## Theme Thursday workflow
+
+1. **Monday–Wednesday** — Voting open. Users vote via `/dashboard` or admin opens via `theme-vote:open` or admin UI
+2. **Wednesday** — Voting closes. Admin runs `theme-vote:close` or uses admin UI; winner announced
+3. **Thursday 09:00** — Radio plays Theme Thursday kickoff DJ announcement, then plays from playlists tagged `themeThursday=true` (or `themeThursdayTitle` matching winner) all day
+
+Playlists are tagged in admin UI or via API:
+- `themeThursday=true` — playlist participates in Theme Thursday
+- `themeThursdayTitle="Dutch"` — playlist only used when "Dutch" wins (optional)
+
+---
+
+## Remote radio setup
+
+1. On controller machine: set `REMOTE_RADIO_HOST`, `REMOTE_RADIO_USER`, `REMOTE_RADIO_DIR` in `.env.local`
+2. Copy SSH key: `ssh-copy-id user@remote-host`
+3. Control: `php bin/console radio:remote start --stop-local` (stops local, starts remote)

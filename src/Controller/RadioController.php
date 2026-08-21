@@ -7,6 +7,7 @@ use App\Repository\TrackRepository;
 use App\Service\JiraService;
 use App\Service\NewsService;
 use App\Service\RadioStateService;
+use App\Service\RemoteRadioService;
 use App\Service\SonosService;
 use App\Service\SpotifyService;
 use Doctrine\ORM\EntityManagerInterface;
@@ -25,6 +26,7 @@ class RadioController extends AbstractController
         private EntityManagerInterface $em,
         private JiraService $jiraService,
         private NewsService $newsService,
+        private RemoteRadioService $remoteRadio,
         private string $jiraAlarmAccount,
         private string $jiraAlarmLabels,
         private string $projectDir,
@@ -86,19 +88,31 @@ class RadioController extends AbstractController
     {
         $state  = $this->radioState->getState();
 
-        $isIdle = ($state['status'] ?? 'idle') === 'idle';
-        $track  = $isIdle ? '—' : ($state['track_title']  ?? '—');
-        $artist = $isIdle ? '—' : ($state['track_artist'] ?? '—');
+        // If local radio is idle, check if remote radio is running
+        $remoteState = null;
+        if (($state['status'] ?? 'idle') === 'idle') {
+            $remoteStatus = $this->remoteRadio->status();
+            if (($remoteStatus['running'] ?? false) && ($remoteStatus['state']['status'] ?? '') === 'playing') {
+                $remoteState = $remoteStatus['state'];
+            }
+        }
 
-        $radioIsPlaying   = $state['status'] === 'playing';
+        // Use remote state if available, otherwise local
+        $sourceState = $remoteState ?? $state;
+
+        $isIdle = ($sourceState['status'] ?? 'idle') === 'idle';
+        $track  = $isIdle ? '—' : ($sourceState['track_title']  ?? '—');
+        $artist = $isIdle ? '—' : ($sourceState['track_artist'] ?? '—');
+
+        $radioIsPlaying   = $sourceState['status'] === 'playing';
         $playback         = $radioIsPlaying ? ($this->spotifyService->getCurrentPlayback() ?? []) : [];
         $spotifyIsPlaying = $radioIsPlaying && ($playback['is_playing'] ?? false);
 
         // Primary source: state file written by radio:start when track begins
-        $durationMs = (int) ($state['track_duration_ms'] ?? 0);
+        $durationMs = (int) ($sourceState['track_duration_ms'] ?? 0);
         $progressMs = 0;
-        if ($durationMs > 0 && isset($state['track_started_at'])) {
-            $progressMs = (int) ((time() - $state['track_started_at']) * 1000);
+        if ($durationMs > 0 && isset($sourceState['track_started_at'])) {
+            $progressMs = (int) ((time() - $sourceState['track_started_at']) * 1000);
             $progressMs = min($progressMs, $durationMs);
         }
 
@@ -122,23 +136,23 @@ class RadioController extends AbstractController
         $response = new JsonResponse([
             'track'             => $track,
             'artist'            => $artist,
-            'image'             => $state['track_image'] ?? $playback['album_image'] ?? null,
-            'dj_text'           => $isIdle ? null : ($state['dj_text'] ?? null),
+            'image'             => $sourceState['track_image'] ?? $playback['album_image'] ?? null,
+            'dj_text'           => $isIdle ? null : ($sourceState['dj_text'] ?? null),
             'progress_ms'       => $progressMs,
             'duration_ms'       => $durationMs,
             'is_playing'        => $spotifyIsPlaying || $radioIsPlaying,
-            'status'            => $state['status'],
-            'start_at'          => $state['start_at'] ?? null,
-            'dj_clip_url'       => $state['dj_clip_url'] ?? null,
-            'playback_method'   => $state['playback_method'] ?? null,
-            'next_track_title'  => $isIdle ? null : ($state['next_track_title'] ?? null),
-            'next_track_artist' => $isIdle ? null : ($state['next_track_artist'] ?? null),
-            'birthday_active'   => (bool) ($state['birthday_active'] ?? false),
-            'birthday_name'     => $state['birthday_name'] ?? null,
-            'birthday_picture'  => isset($state['birthday_picture']) ? '/images/colleagues/' . $state['birthday_picture'] : null,
-            'alarm_active'      => (bool) ($state['alarm_active'] ?? false),
-            'alarm_key'         => $state['alarm_key'] ?? null,
-            'alarm_summary'     => $state['alarm_summary'] ?? null,
+            'status'            => $sourceState['status'],
+            'start_at'          => $sourceState['start_at'] ?? null,
+            'dj_clip_url'       => $sourceState['dj_clip_url'] ?? null,
+            'playback_method'   => $sourceState['playback_method'] ?? null,
+            'next_track_title'  => $isIdle ? null : ($sourceState['next_track_title'] ?? null),
+            'next_track_artist' => $isIdle ? null : ($sourceState['next_track_artist'] ?? null),
+            'birthday_active'   => (bool) ($sourceState['birthday_active'] ?? false),
+            'birthday_name'     => $sourceState['birthday_name'] ?? null,
+            'birthday_picture'  => isset($sourceState['birthday_picture']) ? '/images/colleagues/' . $sourceState['birthday_picture'] : null,
+            'alarm_active'      => (bool) ($sourceState['alarm_active'] ?? false),
+            'alarm_key'         => $sourceState['alarm_key'] ?? null,
+            'alarm_summary'     => $sourceState['alarm_summary'] ?? null,
         ]);
 
         $response->headers->set('Cache-Control', 'no-cache, no-store, must-revalidate');
