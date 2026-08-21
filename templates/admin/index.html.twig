@@ -1875,7 +1875,7 @@
                 if (!list.length) {
                     tbody.innerHTML = '<tr><td colspan="6" class="req-empty">No requests yet.</td></tr>';
                     document.getElementById('req-pending-count').textContent = '';
-                    knownPendingIds.clear();
+                    // Don't clear knownPendingIds here - we want to detect new requests after empty state
                     return;
                 }
 
@@ -1887,7 +1887,7 @@
                 // Check for new pending requests
                 const currentPendingIds = new Set(pendingRequests.map(r => r.id));
                 const newIds = [...currentPendingIds].filter(id => !knownPendingIds.has(id));
-                if (knownPendingIds.size > 0 && newIds.length > 0) {
+                if (newIds.length > 0) {
                     newIds.forEach(id => {
                         const req = pendingRequests.find(r => r.id === id);
                         if (req) showNotification('New song request', '"' + req.title + '" by ' + req.artist + ' (requested by ' + req.requestedBy + ')');
