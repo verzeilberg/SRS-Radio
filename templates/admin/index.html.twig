@@ -1251,9 +1251,9 @@
                                     {% set votes = voteMap[theme] ?? 0 %}
                                     {% set pct = maxVotes > 0 ? (votes / maxVotes * 100) : 0 %}
                                     {% set isLeader = votes == maxVotes and maxVotes > 0 %}
-                                    <div class="vote-bar-row" style="display:flex;align-items:center;gap:.75rem;opacity:{{ votes > 0 or isLeader ? 1 : 0.5 }}">
-                                        <span class="vote-bar-label" style="width:60px;font-size:.75rem;font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap">{{ theme }}</span>
-                                        <div class="vote-bar-track" style="flex:1;height:26px;background:#0a0a1a;border:1px solid #2a2a4a;border-radius:13px;overflow:hidden;position:relative">
+                                    <div class="vote-bar-row" style="display:flex;flex-direction:column;gap:.25rem;opacity:{{ votes > 0 or isLeader ? 1 : 0.5 }}">
+                                        <span class="vote-bar-label" style="font-size:.75rem;font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:.05em">{{ theme }}</span>
+                                        <div class="vote-bar-track" style="height:26px;background:#0a0a1a;border:1px solid #2a2a4a;border-radius:13px;overflow:hidden;position:relative">
                                             {% if pct > 0 %}
                                                 <div class="vote-bar-fill"
                                                      style="height:100%;width:{{ pct }}%;background:linear-gradient(90deg,#5b21b6,#b47fff);border-radius:13px;transition:width .5s ease;display:flex;align-items:center;justify-content:flex-end;padding-right:.5rem;box-sizing:border-box">
