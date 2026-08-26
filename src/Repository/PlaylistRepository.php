@@ -42,4 +42,46 @@ class PlaylistRepository extends ServiceEntityRepository
             'label' => $p->getLabel(),
         ], $playlists);
     }
+
+    /** Returns distinct themeThursdayTitle values from active playlists tagged for Theme Thursday. */
+    public function findAvailableThemeThursdayTitles(): array
+    {
+        return $this->createQueryBuilder('p')
+            ->select('DISTINCT p.themeThursdayTitle')
+            ->andWhere('p.active = true')
+            ->andWhere('p.themeThursday = true')
+            ->andWhere('p.themeThursdayTitle IS NOT NULL')
+            ->andWhere('p.themeThursdayTitle != \'\'')
+            ->orderBy('p.themeThursdayTitle', 'ASC')
+            ->getQuery()
+            ->getSingleColumnResult();
+    }
+
+    /** Returns active playlists tagged for Theme Thursday, grouped by themeThursdayTitle. */
+    public function findThemeThursdayPlaylistsByTitle(): array
+    {
+        $playlists = $this->createQueryBuilder('p')
+            ->andWhere('p.active = true')
+            ->andWhere('p.themeThursday = true')
+            ->andWhere('p.themeThursdayTitle IS NOT NULL')
+            ->andWhere('p.themeThursdayTitle != \'\'')
+            ->orderBy('p.themeThursdayTitle', 'ASC')
+            ->addOrderBy('p.sortOrder', 'ASC')
+            ->getQuery()
+            ->getResult();
+
+        $grouped = [];
+        foreach ($playlists as $p) {
+            $title = $p->getThemeThursdayTitle();
+            if (!isset($grouped[$title])) {
+                $grouped[$title] = [];
+            }
+            $grouped[$title][] = [
+                'id'    => $p->getSpotifyId(),
+                'label' => $p->getLabel(),
+            ];
+        }
+
+        return $grouped;
+    }
 }

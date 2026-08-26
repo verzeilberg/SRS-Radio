@@ -37,6 +37,7 @@ class AdminController extends AbstractController
         private SonosApiService $sonosApi,
         private SpotifyService $spotify,
         private ThemeVoteRepository $themeVoteRepository,
+        private PlaylistRepository $playlistRepository,
     ) {}
 
     #[Route('', name: 'app_admin_dashboard')]
@@ -65,6 +66,8 @@ class AdminController extends AbstractController
             }
         }
 
+        $availableThemes = $this->playlistRepository->findAvailableThemeThursdayTitles();
+
         return $this->render('admin/index.html.twig', [
             'volume'            => $volume,
             'backend'           => $backend,
@@ -83,6 +86,7 @@ class AdminController extends AbstractController
                 'winner' => $winner,
                 'counts' => $counts,
                 'max_votes' => $maxVotes,
+                'available_themes' => $availableThemes,
             ],
         ]);
     }

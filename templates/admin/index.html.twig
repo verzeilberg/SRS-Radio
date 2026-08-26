@@ -1240,7 +1240,7 @@
                                     {{ total }} vote{{ total != 1 ? 's' : '' }} total
                                 </span>
                             </div>
-                            {% set allThemes = ['80s','90s','00s','Dance','Rock','Dutch','Soul','Disco','House','Techno'] %}
+                            {% set allThemes = theme_vote.available_themes %}
                             {% set voteMap = {} %}
                             {% for c in theme_vote.counts %}
                                 {% set voteMap = voteMap|merge({(c.theme): c.votes}) %}

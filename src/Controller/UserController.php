@@ -3,6 +3,7 @@
 namespace App\Controller;
 
 use App\Entity\SongRequest;
+use App\Repository\PlaylistRepository;
 use App\Repository\SongRequestRepository;
 use App\Repository\ThemeVoteRepository;
 use App\Service\RadioStateService;
@@ -19,7 +20,7 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 class UserController extends AbstractController
 {
     #[Route('/dashboard', name: 'app_user_dashboard')]
-    public function dashboard(ThemeVoteRepository $themeVoteRepository): Response
+    public function dashboard(ThemeVoteRepository $themeVoteRepository, PlaylistRepository $playlistRepository): Response
     {
         $now = new \DateTimeImmutable('now', new \DateTimeZone('Europe/Amsterdam'));
         $monday = $now->modify('monday this week')->format('Y-m-d');
@@ -43,6 +44,9 @@ class UserController extends AbstractController
             }
         }
 
+        $availableThemes = $playlistRepository->findAvailableThemeThursdayTitles();
+        $themePlaylists = $playlistRepository->findThemeThursdayPlaylistsByTitle();
+
         return $this->render('user/dashboard.html.twig', [
             'theme_vote' => [
                 'week' => $monday,
@@ -53,6 +57,8 @@ class UserController extends AbstractController
                 'winner' => $winner,
                 'counts' => $counts,
                 'max_votes' => $maxVotes,
+                'available_themes' => $availableThemes,
+                'theme_playlists' => $themePlaylists,
             ],
         ]);
     }
@@ -126,7 +132,7 @@ class UserController extends AbstractController
     // ── Theme Thursday voting ──────────────────────────────────────────────────
 
     #[Route('/api/theme-vote', name: 'app_theme_vote', methods: ['POST'])]
-    public function themeVote(Request $request, ThemeVoteRepository $themeVoteRepository, EntityManagerInterface $em): JsonResponse
+    public function themeVote(Request $request, ThemeVoteRepository $themeVoteRepository, PlaylistRepository $playlistRepository, EntityManagerInterface $em): JsonResponse
     {
         $now = new \DateTimeImmutable('now', new \DateTimeZone('Europe/Amsterdam'));
         $dayOfWeek = (int) $now->format('N');
@@ -143,8 +149,8 @@ class UserController extends AbstractController
             return new JsonResponse(['error' => 'Theme is required'], 400);
         }
 
-        // Validate theme against allowed list
-        $allowedThemes = ['80s', '90s', '00s', 'Dance', 'Rock', 'Dutch', 'Soul', 'Disco', 'House', 'Techno'];
+        // Validate theme against available themes from playlists tagged for Theme Thursday
+        $allowedThemes = $playlistRepository->findAvailableThemeThursdayTitles();
         if (!in_array($theme, $allowedThemes, true)) {
             return new JsonResponse(['error' => 'Invalid theme'], 400);
         }
