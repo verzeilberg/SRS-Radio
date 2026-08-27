@@ -663,19 +663,19 @@
                                 {% set votes = voteMap[theme] ?? 0 %}
                                 {% set pct = maxVotes > 0 ? (votes / maxVotes * 100) : 0 %}
                                 {% set isLeader = votes == maxVotes and maxVotes > 0 %}
-                                <div class="vote-bar-row" style="display:flex;flex-direction:column;gap:.25rem;opacity:{{ votes > 0 or isLeader ? 1 : 0.5 }}">
+                                <div class="vote-bar-row" style="display:flex;flex-direction:column;gap:.25rem;opacity:{{ votes > 0 or isLeader ? 1 : 0.5 }};position:relative">
                                     <span class="vote-bar-label" style="font-size:.75rem;font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:.05em">{{ theme }}</span>
-                                    <div class="vote-bar-track" style="height:24px;background:#0a0a1a;border:1px solid #2a2a4a;border-radius:12px;overflow:hidden;position:relative">
+                                    <div class="vote-bar-track" style="height:24px;background:#0a0a1a;border:1px solid #2a2a4a;border-radius:12px;overflow:hidden">
                                         {% if pct > 0 %}
                                             <div class="vote-bar-fill"
                                                  style="height:100%;width:{{ pct }}%;background:linear-gradient(90deg,#5b21b6,#b47fff);border-radius:12px;transition:width .5s ease;display:flex;align-items:center;justify-content:flex-end;padding-right:.5rem;box-sizing:border-box">
                                                 <span class="vote-count" style="font-size:.7rem;font-weight:700;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.5);white-space:nowrap">{{ votes }}</span>
                                             </div>
                                         {% endif %}
-                                        {% if theme_vote.has_voted and theme == theme_vote.counts[0].theme %}
-                                            <span class="vote-winner-badge" style="position:absolute;right:2px;top:50%;transform:translateY(-50%);font-size:.55rem;font-weight:700;color:#b47fff;background:rgba(180,120,255,.2);padding:.1rem .35rem;border-radius:4px;letter-spacing:.05em">YOURS</span>
-                                        {% endif %}
                                     </div>
+                                    {% if theme_vote.has_voted and theme == theme_vote.counts[0].theme %}
+                                        <span class="vote-winner-badge" style="position:absolute;right:0;top:1.75rem;font-size:.55rem;font-weight:700;color:#b47fff;background:rgba(180,120,255,.2);padding:.1rem .35rem;border-radius:4px;letter-spacing:.05em;white-space:nowrap">YOURS</span>
+                                    {% endif %}
                                 </div>
                             {% endfor %}
                         </div>

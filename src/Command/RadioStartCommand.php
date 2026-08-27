@@ -704,11 +704,11 @@ class RadioStartCommand extends Command
         // Check for Theme Thursday
         $themeTitle = $this->getActiveThemeTitle();
         if ($themeTitle) {
-            $pools = $this->playlistRepository->findThemeThursday();
+            $pools = $this->playlistRepository->findThemeThursday($themeTitle);
             if (!empty($pools)) {
                 $io->writeln(sprintf('<info>🎭 Theme Thursday:</info> %s', $themeTitle));
             } else {
-                $io->warning(sprintf('Geen playlists getagd voor Theme Thursday, val terug op standaard pools.'));
+                $io->warning(sprintf('Geen playlists getagd voor Theme Thursday "%s", val terug op standaard pools.', $themeTitle));
                 $themeTitle = null;
             }
         }
