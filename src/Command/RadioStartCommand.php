@@ -9,6 +9,7 @@ use App\Repository\ColleagueRepository;
 use App\Repository\DjAnnouncementRepository;
 use App\Repository\PlaylistRepository;
 use App\Repository\SongRequestRepository;
+use App\Repository\ThemeThursdayOptionRepository;
 use App\Repository\ThemeVoteRepository;
 use App\Repository\TrackRepository;
 use App\Service\DjScriptService;
@@ -83,6 +84,7 @@ class RadioStartCommand extends Command
         private NewsService $news,
         private ColleagueRepository $colleagueRepository,
         private PlaylistRepository $playlistRepository,
+        private ThemeThursdayOptionRepository $themeThursdayOptionRepository,
         private ThemeVoteRepository $themeVoteRepository,
         private HttpClientInterface $httpClient,
         private string $projectDir,
@@ -704,11 +706,15 @@ class RadioStartCommand extends Command
         // Check for Theme Thursday
         $themeTitle = $this->getActiveThemeTitle();
         if ($themeTitle) {
-            $pools = $this->playlistRepository->findThemeThursday($themeTitle);
-            if (!empty($pools)) {
+            $options = $this->themeThursdayOptionRepository->findByTitle($themeTitle);
+            if (!empty($options)) {
+                $pools = array_map(fn($o) => [
+                    'id'    => $o->getSpotifyId(),
+                    'label' => $o->getLabel(),
+                ], $options);
                 $io->writeln(sprintf('<info>🎭 Theme Thursday:</info> %s', $themeTitle));
             } else {
-                $io->warning(sprintf('Geen playlists getagd voor Theme Thursday "%s", val terug op standaard pools.', $themeTitle));
+                $io->warning(sprintf('Geen playlists geconfigureerd voor Theme Thursday "%s", val terug op standaard pools.', $themeTitle));
                 $themeTitle = null;
             }
         }

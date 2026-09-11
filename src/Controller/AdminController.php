@@ -4,9 +4,11 @@ namespace App\Controller;
 
 use App\Command\RadioStartCommand;
 use App\Entity\Playlist;
+use App\Entity\ThemeThursdayOption;
 use App\Repository\ColleagueRepository;
 use App\Repository\PlaylistRepository;
 use App\Repository\SongRequestRepository;
+use App\Repository\ThemeThursdayOptionRepository;
 use App\Repository\ThemeVoteRepository;
 use App\Repository\UserRepository;
 use App\Service\RadioStateService;
@@ -38,6 +40,7 @@ class AdminController extends AbstractController
         private SpotifyService $spotify,
         private ThemeVoteRepository $themeVoteRepository,
         private PlaylistRepository $playlistRepository,
+        private ThemeThursdayOptionRepository $themeThursdayOptionRepository,
     ) {}
 
     #[Route('', name: 'app_admin_dashboard')]
@@ -66,7 +69,8 @@ class AdminController extends AbstractController
             }
         }
 
-        $availableThemes = $this->playlistRepository->findAvailableThemeThursdayTitles();
+        $availableThemes = $this->themeThursdayOptionRepository->findAvailableTitles();
+        $themeThursdayOptions = $this->themeThursdayOptionRepository->findActiveOptions();
 
         return $this->render('admin/index.html.twig', [
             'volume'            => $volume,
@@ -88,6 +92,7 @@ class AdminController extends AbstractController
                 'max_votes' => $maxVotes,
                 'available_themes' => $availableThemes,
             ],
+            'theme_thursday_options' => $themeThursdayOptions,
         ]);
     }
 
@@ -715,6 +720,94 @@ class AdminController extends AbstractController
             'winner' => $winner,
             'counts' => $counts,
         ]);
+    }
+
+    // ── Theme Thursday Options ────────────────────────────────────────────────
+
+    #[Route('/api/theme-thursday-options', name: 'app_admin_theme_thursday_options_list', methods: ['GET'])]
+    public function themeThursdayOptionsList(): JsonResponse
+    {
+        $options = $this->themeThursdayOptionRepository->findActiveOptions();
+
+        return new JsonResponse(array_map(fn(ThemeThursdayOption $o) => [
+            'id'          => $o->getId(),
+            'spotifyId'   => $o->getSpotifyId(),
+            'label'       => $o->getLabel(),
+            'title'       => $o->getTitle(),
+            'sortOrder'   => $o->getSortOrder(),
+            'active'      => $o->isActive(),
+            'createdAt'   => $o->getCreatedAt()->getTimestamp(),
+        ], $options));
+    }
+
+    #[Route('/api/theme-thursday-options', name: 'app_admin_theme_thursday_options_add', methods: ['POST'])]
+    public function themeThursdayOptionsAdd(Request $request, EntityManagerInterface $em): JsonResponse
+    {
+        $data = json_decode($request->getContent(), true);
+        $spotifyId = trim($data['spotifyId'] ?? '');
+        $label = trim($data['label'] ?? '');
+        $title = trim($data['title'] ?? '');
+        $sortOrder = (int)($data['sortOrder'] ?? 0);
+
+        if ($spotifyId === '' || $label === '' || $title === '') {
+            return new JsonResponse(['error' => 'Missing required fields'], 400);
+        }
+
+        $option = new ThemeThursdayOption($spotifyId, $label, $title, $sortOrder);
+        $em->persist($option);
+        $em->flush();
+
+        return new JsonResponse([
+            'ok' => true,
+            'id' => $option->getId(),
+            'spotifyId' => $option->getSpotifyId(),
+            'label' => $option->getLabel(),
+            'title' => $option->getTitle(),
+            'sortOrder' => $option->getSortOrder(),
+            'active' => $option->isActive(),
+        ]);
+    }
+
+    #[Route('/api/theme-thursday-options/{id}', name: 'app_admin_theme_thursday_options_update', methods: ['PATCH'])]
+    public function themeThursdayOptionsUpdate(int $id, Request $request, EntityManagerInterface $em): JsonResponse
+    {
+        $option = $this->themeThursdayOptionRepository->find($id);
+        if (!$option) {
+            return new JsonResponse(['error' => 'Not found'], 404);
+        }
+
+        $data = json_decode($request->getContent(), true);
+
+        if (isset($data['label'])) {
+            $option->setLabel(trim($data['label']));
+        }
+        if (isset($data['title'])) {
+            $option->setTitle(trim($data['title']));
+        }
+        if (isset($data['sortOrder'])) {
+            $option->setSortOrder((int)$data['sortOrder']);
+        }
+        if (isset($data['active'])) {
+            $option->setActive((bool)$data['active']);
+        }
+
+        $em->flush();
+
+        return new JsonResponse(['ok' => true]);
+    }
+
+    #[Route('/api/theme-thursday-options/{id}', name: 'app_admin_theme_thursday_options_delete', methods: ['DELETE'])]
+    public function themeThursdayOptionsDelete(int $id, EntityManagerInterface $em): JsonResponse
+    {
+        $option = $this->themeThursdayOptionRepository->find($id);
+        if (!$option) {
+            return new JsonResponse(['error' => 'Not found'], 404);
+        }
+
+        $em->remove($option);
+        $em->flush();
+
+        return new JsonResponse(['ok' => true]);
     }
 
     /**

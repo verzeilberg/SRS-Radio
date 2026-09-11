@@ -73,256 +73,6 @@
         100% { transform: translateX(-50%); }
     }
 
-    /* ── Grid Layout ── */
-    .grid-container {
-        display: grid;
-        grid-template-columns: repeat(4, 1fr);
-        grid-template-rows: repeat(3, 1fr);
-        height: calc(100vh - 2.2rem);
-        padding-top: 2.2rem;
-        gap: 1rem;
-        padding: 3rem 2rem 2rem;
-    }
-
-    .grid-cell {
-        background: rgba(20,75,124,0.6);
-        border: 1px solid rgba(46,163,242,0.15);
-        border-radius: 16px;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        padding: 1.5rem;
-        overflow: hidden;
-        min-height: 0;
-    }
-
-    .grid-cell .logo {
-        height: clamp(60px, 12vh, 120px);
-        filter: brightness(0) invert(1);
-    }
-
-    .grid-cell .track-info {
-        text-align: center;
-        width: 100%;
-    }
-
-    .grid-cell .track {
-        font-family: 'Raleway', sans-serif;
-        font-size: clamp(1.5rem, 4vh, 2.8rem);
-        font-weight: 900;
-        color: #ffffff;
-        line-height: 1.15;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-
-    .grid-cell .artist {
-        font-size: clamp(1rem, 2.5vh, 1.3rem);
-        font-weight: 300;
-        color: #2ea3f2;
-        letter-spacing: 0.04em;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-
-    .grid-cell .progress-wrap {
-        width: 100%;
-        margin-top: 1rem;
-    }
-
-    .grid-cell .progress-track {
-        height: 6px;
-        background: rgba(255,255,255,0.12);
-        border-radius: 3px;
-        overflow: hidden;
-        width: 100%;
-        margin-bottom: 0.5rem;
-    }
-
-    .grid-cell .progress-bar {
-        height: 100%;
-        background: #2ea3f2;
-        border-radius: 2px;
-        width: 0%;
-        transition: width 1s linear;
-    }
-
-    .grid-cell .progress-times {
-        display: flex;
-        justify-content: space-between;
-        font-size: 0.85rem;
-        color: rgba(255,255,255,0.45);
-        font-variant-numeric: tabular-nums;
-    }
-
-    .grid-cell .countdown-block {
-        text-align: center;
-    }
-
-    .grid-cell .countdown {
-        font-family: 'Raleway', sans-serif;
-        font-size: clamp(2.5rem, 6vh, 4rem);
-        font-weight: 900;
-        color: #2ea3f2;
-        letter-spacing: 0.05em;
-    }
-
-    .grid-cell .countdown-label {
-        font-size: 0.75rem;
-        color: rgba(255,255,255,0.3);
-        text-transform: uppercase;
-        letter-spacing: 0.2em;
-        font-weight: 700;
-    }
-
-    .grid-cell .dj-text {
-        font-size: 1rem;
-        line-height: 1.7;
-        color: rgba(255,255,255,0.4);
-        font-style: italic;
-        font-weight: 300;
-        text-align: center;
-        max-width: 100%;
-    }
-
-    .grid-cell .jira-header {
-        display: flex;
-        align-items: center;
-        gap: 0.6rem;
-        margin-bottom: 1rem;
-        width: 100%;
-    }
-
-    .grid-cell .jira-header-dot {
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-        background: #ff4d4d;
-        flex-shrink: 0;
-        animation: pulse-red 1.6s ease-in-out infinite;
-    }
-
-    .grid-cell .jira-header-label {
-        font-family: 'Raleway', sans-serif;
-        font-size: 1.2rem;
-        font-weight: 900;
-        letter-spacing: 0.05em;
-        text-transform: uppercase;
-        color: rgba(255,255,255,0.85);
-    }
-
-    .grid-cell .jira-empty {
-        font-size: 0.85rem;
-        color: rgba(255,255,255,0.2);
-        font-style: italic;
-    }
-
-    .grid-cell .jira-ticket {
-        background: rgba(255,77,77,0.07);
-        border: 1px solid rgba(255,77,77,0.18);
-        border-left: 3px solid #ff4d4d;
-        border-radius: 8px;
-        padding: 1rem 1.1rem;
-        margin-bottom: 0.75rem;
-        animation: slide-in 0.35s ease;
-    }
-
-    .grid-cell .jira-key {
-        font-size: 0.7rem;
-        font-weight: 700;
-        letter-spacing: 0.12em;
-        color: #ff6b6b;
-        text-transform: uppercase;
-        margin-bottom: 0.35rem;
-    }
-
-    .grid-cell .jira-summary {
-        font-size: 0.85rem;
-        font-weight: 400;
-        color: rgba(255,255,255,0.85);
-        line-height: 1.4;
-        margin-bottom: 0.4rem;
-    }
-
-    .grid-cell .jira-status {
-        display: inline-block;
-        font-size: 0.65rem;
-        font-weight: 700;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        color: rgba(255,255,255,0.3);
-    }
-
-    .grid-cell .ranking-header {
-        display: flex;
-        align-items: center;
-        gap: 0.6rem;
-        margin-bottom: 1rem;
-        width: 100%;
-    }
-
-    .grid-cell .ranking-header-dot {
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-        background: #2ea3f2;
-        flex-shrink: 0;
-        animation: pulse 1.5s ease-in-out infinite;
-    }
-
-    .grid-cell .ranking-header-label {
-        font-family: 'Raleway', sans-serif;
-        font-size: 0.9rem;
-        font-weight: 700;
-        letter-spacing: 0.2em;
-        text-transform: uppercase;
-        color: #2ea3f2;
-    }
-
-    .grid-cell .on-air {
-        display: flex;
-        align-items: center;
-        gap: 0.6rem;
-        font-size: 0.7rem;
-        letter-spacing: 0.25em;
-        text-transform: uppercase;
-        color: rgba(255,255,255,0.35);
-        font-weight: 300;
-    }
-
-    .grid-cell .on-air-dot {
-        width: 10px;
-        height: 10px;
-        border-radius: 50%;
-        background: #2ea3f2;
-        flex-shrink: 0;
-        animation: pulse 1.5s ease-in-out infinite;
-    }
-
-    .grid-cell .on-air-dot.inactive {
-        background: rgba(255,255,255,0.2);
-        animation: none;
-    }
-
-    .grid-cell .setup-link {
-        font-size: 0.7rem;
-        color: rgba(255,255,255,0.2);
-        text-decoration: none;
-        letter-spacing: 0.12em;
-        text-transform: uppercase;
-        transition: color 0.2s;
-    }
-    .grid-cell .setup-link:hover { color: rgba(255,255,255,0.6); }
-
-    /* Cell spanning for specific cells */
-    .cell-playing { grid-column: span 2; }
-    .cell-jira { grid-column: span 2; }
-
-    .hidden { display: none !important; }
-
     .split {
         display: flex;
         height: 100vh;
@@ -1049,166 +799,99 @@
         <div class="ticker-items" id="ticker-items"></div>
     </div>
 </div>
+<div class="split">
 
-<div class="grid-container">
-    {# Row 1 #}
-    <div class="grid-cell cell-logo">
-        <img src="/images/srs-logo.svg" alt="SRS" class="logo">
-    </div>
-    <div class="grid-cell cell-eq-low">
-        <svg id="eq-low" viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg">
-            <defs>
-                <clipPath id="hex-clip-low"><polygon points="150,17 283,83 283,217 150,283 17,217 17,83"/></clipPath>
-                <filter id="glow-low" x="-20%" y="-20%" width="140%" height="140%">
-                    <feGaussianBlur stdDeviation="3.5" result="blur"/>
-                    <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-                </filter>
-            </defs>
-            <polygon points="150,17 283,83 283,217 150,283 17,217 17,83" fill="#060f1a"/>
-            <g id="eq-facets-low" clip-path="url(#hex-clip-low)"></g>
-            <polygon points="150,17 283,83 283,217 150,283 17,217 17,83" fill="none" stroke="#f97316" stroke-width="2.5" filter="url(#glow-low)" opacity="0.8"/>
-            <polygon points="150,17 283,83 283,217 150,283 17,217 17,83" fill="none" stroke="#fdba74" stroke-width="1" opacity="0.5"/>
-        </svg>
-    </div>
-    <div class="grid-cell cell-eq-mid">
-        <svg id="eq-mid" viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg">
-            <defs>
-                <clipPath id="hex-clip-mid"><polygon points="150,17 283,83 283,217 150,283 17,217 17,83"/></clipPath>
-                <filter id="glow-mid" x="-20%" y="-20%" width="140%" height="140%">
-                    <feGaussianBlur stdDeviation="3.5" result="blur"/>
-                    <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-                </filter>
-            </defs>
-            <polygon points="150,17 283,83 283,217 150,283 17,217 17,83" fill="#060f1a"/>
-            <g id="eq-facets-mid" clip-path="url(#hex-clip-mid)"></g>
-            <polygon points="150,17 283,83 283,217 150,283 17,217 17,83" fill="none" stroke="#4ade80" stroke-width="2.5" filter="url(#glow-mid)" opacity="0.8"/>
-            <polygon points="150,17 283,83 283,217 150,283 17,217 17,83" fill="none" stroke="#86efac" stroke-width="1" opacity="0.5"/>
-        </svg>
-    </div>
-    <div class="grid-cell cell-eq-high">
-        <svg id="eq-high" viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg">
-            <defs>
-                <clipPath id="hex-clip-high"><polygon points="150,17 283,83 283,217 150,283 17,217 17,83"/></clipPath>
-                <filter id="glow-high" x="-20%" y="-20%" width="140%" height="140%">
-                    <feGaussianBlur stdDeviation="3.5" result="blur"/>
-                    <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-                </filter>
-            </defs>
-            <polygon points="150,17 283,83 283,217 150,283 17,217 17,83" fill="#060f1a"/>
-            <g id="eq-facets-high" clip-path="url(#hex-clip-high)"></g>
-            <polygon points="150,17 283,83 283,217 150,283 17,217 17,83" fill="none" stroke="#2ea3f2" stroke-width="2.5" filter="url(#glow-high)" opacity="0.8"/>
-            <polygon points="150,17 283,83 283,217 150,283 17,217 17,83" fill="none" stroke="#7dd4fc" stroke-width="1" opacity="0.5"/>
-        </svg>
-    </div>
+    <div class="panel-left">
 
-    {# Row 2 #}
-    <div class="grid-cell cell-playing" id="block-playing" style="display:none">
-        <div class="track-info">
-            <div class="track" id="track">—</div>
-            <div class="artist" id="artist">—</div>
+        <div class="top">
+            <img src="/images/srs-logo.svg" alt="SRS" class="logo">
         </div>
-        <img id="album-art" src="" alt="" style="display:none;width:clamp(80px,13vh,150px);height:clamp(80px,13vh,150px);object-fit:cover;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.5);flex-shrink:0;transition:opacity 0.4s ease;">
-        <div class="progress-wrap">
-            <div class="progress-track">
-                <div class="progress-bar" id="progress-bar"></div>
+
+        <div class="eq-row" id="eq-row">
+            <div class="eq-unit">
+                <svg id="eq-low" viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <clipPath id="hex-clip-low"><polygon points="150,17 283,83 283,217 150,283 17,217 17,83"/></clipPath>
+                        <filter id="glow-low" x="-20%" y="-20%" width="140%" height="140%">
+                            <feGaussianBlur stdDeviation="3.5" result="blur"/>
+                            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+                        </filter>
+                    </defs>
+                    <polygon points="150,17 283,83 283,217 150,283 17,217 17,83" fill="#060f1a"/>
+                    <g id="eq-facets-low" clip-path="url(#hex-clip-low)"></g>
+                    <polygon points="150,17 283,83 283,217 150,283 17,217 17,83" fill="none" stroke="#f97316" stroke-width="2.5" filter="url(#glow-low)" opacity="0.8"/>
+                    <polygon points="150,17 283,83 283,217 150,283 17,217 17,83" fill="none" stroke="#fdba74" stroke-width="1" opacity="0.5"/>
+                </svg>
             </div>
-            <div class="progress-times">
-                <span id="time-elapsed">0:00</span>
-                <span id="time-remaining">-0:00</span>
+            <div class="eq-unit">
+                <svg id="eq-mid" viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <clipPath id="hex-clip-mid"><polygon points="150,17 283,83 283,217 150,283 17,217 17,83"/></clipPath>
+                        <filter id="glow-mid" x="-20%" y="-20%" width="140%" height="140%">
+                            <feGaussianBlur stdDeviation="3.5" result="blur"/>
+                            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+                        </filter>
+                    </defs>
+                    <polygon points="150,17 283,83 283,217 150,283 17,217 17,83" fill="#060f1a"/>
+                    <g id="eq-facets-mid" clip-path="url(#hex-clip-mid)"></g>
+                    <polygon points="150,17 283,83 283,217 150,283 17,217 17,83" fill="none" stroke="#4ade80" stroke-width="2.5" filter="url(#glow-mid)" opacity="0.8"/>
+                    <polygon points="150,17 283,83 283,217 150,283 17,217 17,83" fill="none" stroke="#86efac" stroke-width="1" opacity="0.5"/>
+                </svg>
+            </div>
+            <div class="eq-unit">
+                <svg id="eq-high" viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <clipPath id="hex-clip-high"><polygon points="150,17 283,83 283,217 150,283 17,217 17,83"/></clipPath>
+                        <filter id="glow-high" x="-20%" y="-20%" width="140%" height="140%">
+                            <feGaussianBlur stdDeviation="3.5" result="blur"/>
+                            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+                        </filter>
+                    </defs>
+                    <polygon points="150,17 283,83 283,217 150,283 17,217 17,83" fill="#060f1a"/>
+                    <g id="eq-facets-high" clip-path="url(#hex-clip-high)"></g>
+                    <polygon points="150,17 283,83 283,217 150,283 17,217 17,83" fill="none" stroke="#2ea3f2" stroke-width="2.5" filter="url(#glow-high)" opacity="0.8"/>
+                    <polygon points="150,17 283,83 283,217 150,283 17,217 17,83" fill="none" stroke="#7dd4fc" stroke-width="1" opacity="0.5"/>
+                </svg>
             </div>
         </div>
-    </div>
-    <div class="grid-cell cell-countdown" id="block-countdown" style="display:none">
-        <div class="countdown-block">
-            <div class="countdown" id="countdown">--:--:--</div>
-            <div class="countdown-label" id="countdown-label">start om --:--</div>
+
+        <div class="middle" id="block-playing" style="display:none">
+            <div style="display:flex;align-items:center;gap:1.5rem;width:100%;">
+                <div class="track-info">
+                    <div class="track" id="track">—</div>
+                    <div class="artist" id="artist">—</div>
+                </div>
+                <img id="album-art" src="" alt="" style="display:none;width:clamp(80px,13vh,150px);height:clamp(80px,13vh,150px);object-fit:cover;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.5);flex-shrink:0;transition:opacity 0.4s ease;">
+            </div>
+            <div class="progress-wrap">
+                <div class="progress-track">
+                    <div class="progress-bar" id="progress-bar"></div>
+                </div>
+                <div class="progress-times">
+                    <span id="time-elapsed">0:00</span>
+                    <span id="time-remaining">-0:00</span>
+                </div>
+            </div>
         </div>
-    </div>
-    <div class="grid-cell cell-dj-text">
-        <div class="dj-text" id="dj-text"></div>
-    </div>
-    <div class="grid-cell cell-next-track" id="next-track-wrap" style="display:none">
-        <div style="font-family:'Raleway',sans-serif;font-size:clamp(1.8rem,4vh,3rem);font-weight:900;letter-spacing:0.25em;text-transform:uppercase;color:rgba(255,255,255,0.3);margin-bottom:0.25rem;">Next</div>
-        <div style="font-family:'Raleway',sans-serif;font-size:clamp(1.2rem,2.8vh,2.2rem);font-weight:900;color:rgba(255,255,255,0.6);line-height:1.15;" id="next-track-title"></div>
-        <div style="font-size:1.05rem;font-weight:300;color:rgba(46,163,242,0.6);letter-spacing:0.04em;" id="next-track-artist"></div>
-    </div>
 
-    {# Row 3 #}
-    <div class="grid-cell cell-jira" id="jira-section">
-        <div class="jira-header">
-            <span class="jira-header-dot" id="jira-dot" style="animation:none;background:rgba(255,255,255,0.15)"></span>
-            <span class="jira-header-label">Highest Priority Ticket</span>
+        <div class="middle" id="block-countdown" style="display:none">
+            <div class="countdown-block">
+                <div class="countdown" id="countdown">--:--:--</div>
+                <div class="countdown-label" id="countdown-label">start om --:--</div>
+            </div>
         </div>
-        <div id="jira-list"><span class="jira-empty">Laden…</span></div>
-    </div>
-    <div class="grid-cell cell-ranking hidden" id="ranking-section">
-        <div class="ranking-header">
-            <span class="ranking-header-dot"></span>
-            <span class="ranking-header-label">WK Pool</span>
+
+        <div class="dj-text" id="dj-text" style="display: none;"></div>
+        <div id="next-track-wrap" style="display:none;margin-top:0.5rem;width:100%;text-align:center;">
+            <div style="font-family:'Raleway',sans-serif;font-size:clamp(1.8rem,4vh,3rem);font-weight:900;letter-spacing:0.25em;text-transform:uppercase;color:rgba(255,255,255,0.3);margin-bottom:0.25rem;">Next</div>
+            <div style="font-family:'Raleway',sans-serif;font-size:clamp(1.2rem,2.8vh,2.2rem);font-weight:900;color:rgba(255,255,255,0.6);line-height:1.15;" id="next-track-title"></div>
+            <div style="font-size:1.05rem;font-weight:300;color:rgba(46,163,242,0.6);letter-spacing:0.04em;" id="next-track-artist"></div>
         </div>
-        <div class="ranking-widget-fetch-area">
-            <div class="ranking-loading"></div>
-            <script>
-                const soccerStart = '{{ soccer_start }}';
-                const soccerEnd   = '{{ soccer_end }}';
-                const today   = new Date();
-                const start   = new Date((soccerStart || '1970-01-01') + 'T00:00:00');
-                const end     = new Date((soccerEnd || '1970-01-01') + 'T00:00:00');
-                const windowEnd = new Date(end);
-                windowEnd.setDate(windowEnd.getDate() + 7);
-                if (!soccerStart || !soccerEnd || today < start || today > windowEnd) {
-                    throw new Error('Outside WK pool date range');
-                }
-                /* ... ranking script ... */
-            </script>
-        </div>
-    </div>
-    <div class="grid-cell cell-on-air">
-        <div class="on-air">
-            <span class="on-air-dot inactive" id="dot"></span>
-            <span id="on-air-label">verbinden…</span>
-        </div>
-    </div>
-    <div class="grid-cell cell-setup">
-        <a href="/setup" class="setup-link">⚙ verbindingen</a>
-    </div>
-</div>
 
-<div class="fullpage-ranking" id="fullpage-ranking">
-    <div class="ranking-header">
-        <span class="ranking-header-dot"></span>
-        <span class="ranking-header-label">WK Pool</span>
     </div>
-    <div id="fullpage-ranking-content"></div>
-</div>
 
-<div class="fullpage-logo" id="fullpage-logo">
-    <img src="/images/srs-logo.svg" alt="SRS" class="fullpage-logo-img">
-</div>
-
-<div id="birthday-overlay">
-    <div class="bday-content">
-        <div id="bday-photo-wrap"></div>
-        <div class="bday-title">Gefeliciteerd!</div>
-        <div class="bday-name" id="bday-name"></div>
-        <div class="bday-sub">Van het hele SRS team 🎉</div>
-    </div>
-</div>
-
-<div id="alarm-overlay">
-    <div class="alarm-bg-flash"></div>
-    <div class="alarm-icon">🚨</div>
-    <div class="alarm-label">Highest Priority</div>
-    <div class="alarm-key" id="alarm-key"></div>
-    <div class="alarm-summary" id="alarm-summary"></div>
-</div>
-
-<div id="tune-in-overlay" style="position:fixed;inset:0;background:rgba(10,25,41,0.92);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.5rem;z-index:200;backdrop-filter:blur(4px);">
-    <img src="/images/srs-logo.svg" alt="SRS FM" style="height:80px;filter:brightness(0) invert(1);opacity:0.9;">
-    <button onclick="tuneIn()" style="background:#2ea3f2;color:#fff;border:none;border-radius:2rem;padding:0.85rem 2.5rem;font-size:1rem;font-family:'Raleway',sans-serif;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;cursor:pointer;">
-        ▶ Tune in
-    </button>
-</div>
+    <div class="panel-right" id="panel-right">
+        <div class="jira-section" id="jira-section">
             <div class="jira-header">
                 <span class="jira-header-dot" id="jira-dot" style="animation:none;background:rgba(255,255,255,0.15)"></span>
                 <span class="jira-header-label">Highest Priority Ticket</span>

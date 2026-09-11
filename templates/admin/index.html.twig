@@ -1031,6 +1031,7 @@
             <li><a href="#section-listener-notes" data-section="section-listener-notes">Listener notes</a></li>
             <li><a href="#section-playlist-pool" data-section="section-playlist-pool">Playlist pool</a></li>
             <li><a href="#section-theme-thursday" data-section="section-theme-thursday">Theme Thursday</a></li>
+            <li><a href="#section-theme-thursday-options" data-section="section-theme-thursday-options">Theme Thu Options</a></li>
             <li><a href="#section-radio-log" data-section="section-radio-log">Radio log</a></li>
             <li><a href="#section-birthday-calendar" data-section="section-birthday-calendar">Birthday calendar</a></li>
             <li><a href="#section-wk-pool" data-section="section-wk-pool">WK Pool</a></li>
@@ -1280,6 +1281,83 @@
                 </div>
             </div>
         </section>
+
+        {# ◀◀ Theme Thursday Options (Admin Management) ◀◀ #}
+        <section id="section-theme-thursday-options" class="section-anchor">
+            <div class="section">
+                <div class="section-header">
+                    <h2>
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#b47fff" stroke-width="1.5" style="vertical-align:middle;margin-right:.25rem">
+                            <path d="M12 3v18M3 12h18"/>
+                            <path d="M17 7l-5 5 5 5" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        Theme Thursday Options
+                    </h2>
+                    <span class="section-count" id="theme-thu-opt-count">{{ theme_thursday_options|length }}</span>
+                </div>
+
+                <div class="section-card" style="padding:1.5rem">
+                    <div class="card-title" style="margin-bottom:1rem">Manage voting playlists</div>
+                    <p style="font-size:.8rem;color:#6b5a8a;margin-bottom:1rem">These are the playlists users can vote on for Theme Thursday. Separate from the regular radio pool.</p>
+
+                    <div class="card-title" style="margin-bottom:.75rem">Add from Spotify search</div>
+                    <div class="pool-search-row" style="margin-bottom:1rem">
+                        <input type="text" id="thu-opt-search-input" class="pool-search-input"
+                               placeholder="Search Spotify playlists…"
+                               onkeydown="if(event.key==='Enter') searchThemeThursdayPlaylists()"
+                               style="flex:1;min-width:250px;padding:.5rem;border:1px solid #2a2a4a;border-radius:4px;background:#0a0a1a;color:#fff;font-family:inherit;font-size:.8rem">
+                        <button class="btn-pool-search" id="thu-opt-search-btn" onclick="searchThemeThursdayPlaylists()" style="padding:.5rem 1rem">Search</button>
+                    </div>
+                    <div id="thu-opt-results" class="pool-results" style="margin-bottom:1rem"></div>
+
+                    <div id="thu-opt-list" style="display:flex;flex-direction:column;gap:.5rem">
+                        {% for opt in theme_thursday_options %}
+                            <div class="thu-opt-item" data-id="{{ opt.id }}" style="display:flex;gap:.5rem;align-items:center;padding:.75rem;background:#0a0a1a;border:1px solid #1e1e35;border-radius:8px;flex-wrap:wrap">
+                                <span style="font-size:.7rem;color:#6b5a8a;min-width:40px">{{ opt.id }}</span>
+                                <input type="text" class="thu-opt-label" value="{{ opt.label }}" style="flex:1;min-width:150px;padding:.3rem .5rem;border:1px solid #2a2a4a;border-radius:4px;background:#0a0a1a;color:#fff;font-size:.8rem;font-family:inherit" data-id="{{ opt.id }}">
+                                <input type="text" class="thu-opt-title" value="{{ opt.title }}" style="flex:1;min-width:150px;padding:.3rem .5rem;border:1px solid #2a2a4a;border-radius:4px;background:#0a0a1a;color:#fff;font-size:.8rem;font-family:inherit" data-id="{{ opt.id }}">
+                                <input type="number" class="thu-opt-sort" value="{{ opt.sortOrder }}" style="width:60px;padding:.3rem .5rem;border:1px solid #2a2a4a;border-radius:4px;background:#0a0a1a;color:#fff;font-size:.8rem;font-family:inherit" data-id="{{ opt.id }}">
+                                <label style="display:flex;align-items:center;gap:.3rem;cursor:pointer;font-size:.7rem;color:#b47fff">
+                                    <input type="checkbox" class="thu-opt-active" {% if opt.active %}checked{% endif %} data-id="{{ opt.id }}" style="width:14px;height:14px;accent-color:#b47fff">
+                                    Active
+                                </label>
+                                <button class="btn-pool-remove thu-opt-delete" data-id="{{ opt.id }}" style="background:#3b1111;border-color:#991b1b;color:#fca5a5;padding:.3rem .75rem;font-size:.7rem">🗑️</button>
+                            </div>
+                        {% else %}
+                            <div style="text-align:center;padding:2rem;color:#4a3a6a">No Theme Thursday options configured yet.</div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        {# Modal for adding Theme Thursday option #}
+        <div id="thu-opt-modal" class="modal-overlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.7);z-index:1000;align-items:center;justify-content:center">
+            <div class="modal-box" style="background:#1a1a3a;border:1px solid #2a2a4a;border-radius:12px;padding:1.5rem;width:100%;max-width:400px;box-shadow:0 10px 40px rgba(0,0,0,.5)">
+                <h3 style="margin:0 0 1rem;color:#b47fff" id="thu-opt-modal-title-text">Add Theme Thursday Option</h3>
+                <div style="margin-bottom:1rem;color:#aaa;font-size:.85rem">Playlist: <strong id="thu-opt-modal-label" style="color:#fff"></strong></div>
+                <div style="margin-bottom:1rem" id="thu-opt-modal-input-container">
+                    <label style="display:block;margin-bottom:.4rem;font-size:.8rem;color:#b47fff">Theme Title</label>
+                    <input type="text" id="thu-opt-modal-title" placeholder="e.g. Hardrock" style="width:100%;padding:.6rem;border:1px solid #2a2a4a;border-radius:6px;background:#0a0a1a;color:#fff;font-family:inherit;font-size:.9rem;box-sizing:border-box">
+                </div>
+                <div style="display:flex;gap:.5rem;justify-content:flex-end">
+                    <button class="btn" onclick="closeThuOptModal()" style="background:#2a2a4a;color:#aaa">Cancel</button>
+                    <button class="btn" id="thu-opt-modal-confirm" onclick="confirmThuOptModal()" style="background:#5b21b6;color:#fff">Add</button>
+                </div>
+            </div>
+        </div>
+
+        {# Delete confirmation modal #}
+        <div id="thu-opt-delete-modal" class="modal-overlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.7);z-index:1000;align-items:center;justify-content:center">
+            <div class="modal-box" style="background:#1a1a3a;border:1px solid #991b1b;border-radius:12px;padding:1.5rem;width:100%;max-width:400px;box-shadow:0 10px 40px rgba(0,0,0,.5)">
+                <h3 style="margin:0 0 1rem;color:#fca5a5">Delete Theme Thursday Option</h3>
+                <div style="margin-bottom:1rem;color:#aaa;font-size:.9rem">Are you sure you want to delete <strong id="thu-opt-delete-label" style="color:#fff"></strong>?</div>
+                <div style="display:flex;gap:.5rem;justify-content:flex-end">
+                    <button class="btn" onclick="closeThuOptDeleteModal()" style="background:#2a2a4a;color:#aaa">Cancel</button>
+                    <button class="btn" id="thu-opt-delete-confirm" onclick="confirmThuOptDeleteModal()" style="background:#991b1b;color:#fca5a5">Delete</button>
+                </div>
+            </div>
+        </div>
 
         {# ◀◀ Radio log ◀◀ #}
         <section id="section-radio-log" class="section-anchor">
@@ -1995,15 +2073,6 @@
                     <div class="pool-item ${p.active ? '' : 'inactive'}" id="pool-item-${p.id}">
                         <span class="pool-item-label">${escReq(p.label)}</span>
                         <span class="pool-item-id">${escReq(p.spotifyId)}</span>
-                        <label style="display:flex;align-items:center;gap:.4rem;cursor:pointer;white-space:nowrap">
-                            <input type="checkbox" class="pool-item-thu" data-id="${p.id}" ${p.themeThursday ? 'checked' : ''}
-                                style="width:16px;height:16px;accent-color:#b47fff">
-                            <span style="font-size:.7rem;font-weight:700;color:#b47fff;text-transform:uppercase;letter-spacing:.05em">Theme Thu</span>
-                        </label>
-                        <input type="text" class="pool-item-thu-title" data-id="${p.id}" value="${escReq(p.themeThursdayTitle || '')}"
-                            placeholder="Title (e.g. Hardrock)"
-                            style="width:120px;padding:.2rem .5rem;border:1px solid #2a2a4a;border-radius:4px;background:#0a0a1a;color:#fff;font-size:.7rem;font-family:inherit"
-                            ${!p.themeThursday ? 'disabled' : ''}>
                         <button class="btn-pool-toggle ${p.active ? 'active' : ''}"
                                 data-id="${p.id}">
                             ${p.active ? 'Active' : 'Inactive'}
@@ -2018,49 +2087,10 @@
                 container.querySelectorAll('.btn-pool-remove').forEach(btn => {
                     btn.addEventListener('click', () => removePlaylist(parseInt(btn.dataset.id), btn.dataset.label));
                 });
-                container.querySelectorAll('.pool-item-thu').forEach(chk => {
-                    chk.addEventListener('change', () => updatePlaylistThemeThursday(parseInt(chk.dataset.id), chk.checked));
-                });
-                container.querySelectorAll('.pool-item-thu-title').forEach(input => {
-                    input.addEventListener('blur', () => updatePlaylistThemeThursdayTitle(parseInt(input.dataset.id), input.value));
-                });
 
                 // Refresh add-buttons in search results
                 renderSearchResults();
             } catch (_) {}
-        }
-
-        async function updatePlaylistThemeThursday(id, themeThursday) {
-            try {
-                const res  = await fetch('{{ path('app_admin_playlist_theme_thursday', {'id': '__ID__'}) }}'.replace('__ID__', id), {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ themeThursday }),
-                });
-                const data = await res.json();
-                if (res.ok) {
-                    showToast('Theme Thursday updated.');
-                    loadPool(); // Reload to enable/disable title input
-                } else {
-                    showToast(data.error || 'Failed', true);
-                    loadPool();
-                }
-            } catch (_) { showToast('Request failed.', true); loadPool(); }
-        }
-
-        async function updatePlaylistThemeThursdayTitle(id, title) {
-            try {
-                const res  = await fetch('{{ path('app_admin_playlist_theme_thursday', {'id': '__ID__'}) }}'.replace('__ID__', id), {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ themeThursdayTitle: title }),
-                });
-                const data = await res.json();
-                if (!res.ok) {
-                    showToast(data.error || 'Failed', true);
-                    loadPool();
-                }
-            } catch (_) { showToast('Request failed.', true); loadPool(); }
         }
 
         async function togglePlaylist(id) {
@@ -2171,6 +2201,7 @@
         }
 
         loadPool();
+        loadThemeThursdayOptions();
 
         /* ── Users ── */
         async function toggleRole(id) {
@@ -2264,6 +2295,233 @@
                 btn.disabled = false;
                 btn.textContent = '🔒 Close voting & announce winner';
             }
+        }
+
+        /* ── Theme Thursday Options ── */
+        async function loadThemeThursdayOptions() {
+            try {
+                const res = await fetch('{{ path('app_admin_theme_thursday_options_list') }}');
+                const options = await res.json();
+
+                const container = document.getElementById('thu-opt-list');
+                const countEl = document.getElementById('thu-opt-count');
+
+                if (countEl) countEl.textContent = options.length;
+
+                if (!options.length) {
+                    container.innerHTML = '<div style="text-align:center;padding:2rem;color:#4a3a6a">No Theme Thursday options configured yet.</div>';
+                    return;
+                }
+
+                container.innerHTML = options.map(opt => `
+                    <div class="thu-opt-item" data-id="${opt.id}" style="display:flex;gap:.5rem;align-items:center;padding:.75rem;background:#0a0a1a;border:1px solid #1e1e35;border-radius:8px;flex-wrap:wrap">
+                        <span style="font-size:.7rem;color:#6b5a8a;min-width:40px">${opt.id}</span>
+                        <input type="text" class="thu-opt-label" value="${escReq(opt.label)}" style="flex:1;min-width:150px;padding:.3rem .5rem;border:1px solid #2a2a4a;border-radius:4px;background:#0a0a1a;color:#fff;font-size:.8rem;font-family:inherit" data-id="${opt.id}">
+                        <input type="text" class="thu-opt-title" value="${escReq(opt.title)}" style="flex:1;min-width:150px;padding:.3rem .5rem;border:1px solid #2a2a4a;border-radius:4px;background:#0a0a1a;color:#fff;font-size:.8rem;font-family:inherit" data-id="${opt.id}">
+                        <input type="number" class="thu-opt-sort" value="${opt.sortOrder}" style="width:60px;padding:.3rem .5rem;border:1px solid #2a2a4a;border-radius:4px;background:#0a0a1a;color:#fff;font-size:.8rem;font-family:inherit" data-id="${opt.id}">
+                        <label style="display:flex;align-items:center;gap:.3rem;cursor:pointer;font-size:.7rem;color:#b47fff">
+                            <input type="checkbox" class="thu-opt-active" ${opt.active ? 'checked' : ''} data-id="${opt.id}" style="width:14px;height:14px;accent-color:#b47fff">
+                            Active
+                        </label>
+                        <button class="btn-pool-remove thu-opt-delete" data-id="${opt.id}" style="background:#3b1111;border-color:#991b1b;color:#fca5a5;padding:.3rem .75rem;font-size:.7rem">🗑️</button>
+                    </div>
+                `).join('');
+
+                container.querySelectorAll('.thu-opt-label').forEach(input => {
+                    input.addEventListener('blur', () => updateThemeThursdayOption(input.dataset.id, { label: input.value }));
+                });
+                container.querySelectorAll('.thu-opt-title').forEach(input => {
+                    input.addEventListener('blur', () => updateThemeThursdayOption(input.dataset.id, { title: input.value }));
+                });
+                container.querySelectorAll('.thu-opt-sort').forEach(input => {
+                    input.addEventListener('blur', () => updateThemeThursdayOption(input.dataset.id, { sortOrder: parseInt(input.value) || 0 }));
+                });
+                container.querySelectorAll('.thu-opt-active').forEach(chk => {
+                    chk.addEventListener('change', () => updateThemeThursdayOption(chk.dataset.id, { active: chk.checked }));
+                });
+                container.querySelectorAll('.thu-opt-delete').forEach(btn => {
+                    btn.addEventListener('click', () => deleteThemeThursdayOption(btn.dataset.id));
+                });
+            } catch (_) {}
+        }
+
+        /* ── Theme Thursday Options Search ── */
+        let thuOptSearchResults = [];
+
+        async function searchThemeThursdayPlaylists() {
+            const input = document.getElementById('thu-opt-search-input');
+            const btn   = document.getElementById('thu-opt-search-btn');
+            const query = input.value.trim();
+            if (!query) return;
+
+            btn.disabled    = true;
+            btn.textContent = 'Searching…';
+
+            try {
+                const res  = await fetch('{{ path('app_admin_playlist_search') }}', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query }),
+                });
+                const data = await res.json();
+                thuOptSearchResults = data.results || [];
+                renderThemeThursdaySearchResults();
+                if (data.error) showToast('Search error: ' + data.error, true);
+                if (!thuOptSearchResults.length) document.getElementById('thu-opt-results').innerHTML = '<p class="pool-empty">No results found.</p>';
+            } catch (e) {
+                showToast('Search failed: ' + e.message, true);
+            } finally {
+                btn.disabled    = false;
+                btn.textContent = 'Search';
+            }
+        }
+
+        function renderThemeThursdaySearchResults() {
+            const container = document.getElementById('thu-opt-results');
+            if (!thuOptSearchResults.length) {
+                container.innerHTML = thuOptSearchResults !== null ? '' : '<p class="pool-empty">No results.</p>';
+                return;
+            }
+
+            container.innerHTML = thuOptSearchResults.map(r => {
+                return `
+                    <div class="pool-result-item">
+                        ${r.image
+                            ? `<img class="pool-result-img" src="${escReq(r.image)}" alt="">`
+                            : `<div class="pool-result-img"></div>`}
+                        <div class="pool-result-text">
+                            <div class="pool-result-name">${escReq(r.name)}</div>
+                            <div class="pool-result-owner">${escReq(r.owner)}</div>
+                        </div>
+                        <button class="btn-pool-add"
+                                data-id="${escReq(r.id)}"
+                                data-name="${escReq(r.name)}"
+                                onclick="openThuOptModal('${escReq(r.id)}', '${escReq(r.name)}')">
+                            + Add as Theme Option
+                        </button>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        let thuOptModalData = null;
+
+        function openThuOptModal(spotifyId, label) {
+            thuOptModalData = { spotifyId, label };
+            document.getElementById('thu-opt-modal-label').textContent = label;
+            document.getElementById('thu-opt-modal-title').value = label;
+            document.getElementById('thu-opt-modal').style.display = 'flex';
+            document.getElementById('thu-opt-modal-title').focus();
+            document.getElementById('thu-opt-modal-title').select();
+        }
+
+        function closeThuOptModal() {
+            document.getElementById('thu-opt-modal').style.display = 'none';
+            thuOptModalData = null;
+        }
+
+        async function confirmThuOptModal() {
+            if (!thuOptModalData) return;
+
+            const title = document.getElementById('thu-opt-modal-title').value.trim();
+            if (!title) {
+                showToast('Please enter a theme title', true);
+                return;
+            }
+
+            const { spotifyId, label } = thuOptModalData;
+            closeThuOptModal();
+
+            try {
+                const res = await fetch('{{ path('app_admin_theme_thursday_options_add') }}', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ spotifyId, label, title, sortOrder: 0 }),
+                });
+                const data = await res.json();
+
+                if (res.ok) {
+                    showToast('Theme Thursday option added');
+                    document.getElementById('thu-opt-search-input').value = '';
+                    thuOptSearchResults = [];
+                    document.getElementById('thu-opt-results').innerHTML = '';
+                    loadThemeThursdayOptions();
+                } else {
+                    showToast(data.error || 'Failed to add option', true);
+                }
+            } catch {
+                showToast('Request failed', true);
+            }
+        }
+
+        // Close modals on Escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeThuOptModal();
+                closeThuOptDeleteModal();
+            }
+        });
+
+        async function updateThemeThursdayOption(id, data) {
+            try {
+                const res = await fetch('{{ path('app_admin_theme_thursday_options_update', {'id': '__ID__'}) }}'.replace('__ID__', id), {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data),
+                });
+                if (!res.ok) {
+                    const err = await res.json();
+                    showToast(err.error || 'Failed to update', true);
+                    loadThemeThursdayOptions();
+                }
+            } catch (_) { showToast('Request failed', true); loadThemeThursdayOptions(); }
+        }
+
+        async function deleteThemeThursdayOption(id) {
+            // Fetch the option to show its label in the modal
+            try {
+                const res = await fetch('{{ path('app_admin_theme_thursday_options_list') }}');
+                const options = await res.json();
+                const option = options.find(o => o.id === id);
+                if (option) {
+                    openThuOptDeleteModal(id, option.label);
+                } else {
+                    // Fallback if not found
+                    openThuOptDeleteModal(id, 'this option');
+                }
+            } catch (_) {
+                openThuOptDeleteModal(id, 'this option');
+            }
+        }
+
+        let thuOptDeleteId = null;
+
+        function openThuOptDeleteModal(id, label) {
+            thuOptDeleteId = id;
+            document.getElementById('thu-opt-delete-label').textContent = label;
+            document.getElementById('thu-opt-delete-modal').style.display = 'flex';
+        }
+
+        function closeThuOptDeleteModal() {
+            document.getElementById('thu-opt-delete-modal').style.display = 'none';
+            thuOptDeleteId = null;
+        }
+
+        async function confirmThuOptDeleteModal() {
+            if (!thuOptDeleteId) return;
+
+            const id = thuOptDeleteId;
+            closeThuOptDeleteModal();
+
+            try {
+                const res = await fetch('{{ path('app_admin_theme_thursday_options_delete', {'id': '__ID__'}) }}'.replace('__ID__', id), { method: 'DELETE' });
+                if (res.ok) {
+                    showToast('Option deleted');
+                    loadThemeThursdayOptions();
+                } else {
+                    showToast('Failed to delete', true);
+                }
+            } catch (_) { showToast('Request failed', true); }
         }
 
         /* ── Side navigation scrollspy ── */
