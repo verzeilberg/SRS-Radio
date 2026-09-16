@@ -703,7 +703,18 @@
             document.querySelectorAll('.tab-panel').forEach(p => {
                 p.classList.toggle('active', p.id === 'tab-' + id);
             });
+
+            if (id === 'theme-vote') {
+                startThemeVotePolling();
+            } else {
+                stopThemeVotePolling();
+            }
         }
+
+        // Store theme options for re-rendering
+        const themeOptionsContainer = document.getElementById('theme-options');
+        window.themeOptionsHtml = themeOptionsContainer ? themeOptionsContainer.innerHTML : '';
+        window.allThemes = {% set themes = theme_vote.available_themes %}{{ themes|json_encode|raw }}{% endset %} || [];
 
         /* ── Theme Thursday voting ── */
         async function voteTheme(theme) {
@@ -729,8 +740,8 @@
                         b.style.borderColor = b.dataset.theme === theme ? '#b47fff' : '#2a2a4a';
                         b.style.background = b.dataset.theme === theme ? 'rgba(180,120,255,.1)' : '#0a0a1a';
                     });
-                    // Refresh status
-                    setTimeout(pollThemeVote, 1000);
+                    // Refresh full theme vote UI
+                    await refreshThemeVoteUI();
                 } else {
                     feedback.textContent = data.error || 'Vote failed';
                     feedback.style.color = '#fca5a5';
@@ -743,27 +754,155 @@
             }
         }
 
-        async function pollThemeVote() {
+        async function refreshThemeVoteUI() {
             try {
                 const res = await fetch('{{ path('app_theme_vote_status_user') }}');
                 const data = await res.json();
 
-                // If voting closed or Thursday, the page will show different content on next full reload
-                // For now, just update the vote counts if still open
-                if (data.is_open && !data.has_voted) {
-                    const countsDiv = document.querySelector('[style*="Current standings"] + div');
-                    if (countsDiv && data.counts.length) {
-                        countsDiv.innerHTML = '<strong>Current standings:</strong>' +
-                            '<div style="margin-top:.5rem;display:flex;flex-direction:column;gap:.25rem">' +
-                            data.counts.map(c => '<div style="display:flex;justify-content:space-between"><span>' + c.theme + '</span><span style="color:#b47fff;font-weight:700">' + c.votes + ' vote' + (c.votes !== 1 ? 's' : '') + '</span></div>').join('') +
-                            '</div>';
+                const voteStatusDiv = document.getElementById('vote-status');
+                if (!voteStatusDiv) return;
+
+                if (data.is_thursday) {
+                    // Thursday - show winner
+                    voteStatusDiv.innerHTML = `
+                        <div style="text-align:center;padding:1rem">
+                            <div style="font-size:2.5rem;margin-bottom:.5rem">🎭</div>
+                            <div style="font-size:1.2rem;font-weight:700;color:#b47fff">
+                                ${data.winner ? `This Thursday: <span style="color:#fff">${escHtml(data.winner)}</span>` : 'No theme voted this week'}
+                            </div>
+                            <div style="color:#6b5a8a;margin-top:.5rem;font-size:.85rem">
+                                The radio will play ${data.winner ? escHtml(data.winner).toLowerCase() : 'normal playlists'} all day!
+                            </div>
+                        </div>
+                    `;
+                } else if (data.is_open) {
+                    if (data.has_voted) {
+                        // User has voted - show confirmation
+                        const votedTheme = data.counts.length ? data.counts[0].theme : '';
+                        voteStatusDiv.innerHTML = `
+                            <div style="background:rgba(134,239,172,.1);border:1px solid #2e7d52;border-radius:8px;padding:1rem;text-align:center;color:#86efac">
+                                ✅ You voted for <strong>${escHtml(votedTheme)}</strong>
+                            </div>
+                            <div style="margin-top:1rem;padding:.75rem;background:#0a0a1a;border:1px solid #1e1e35;border-radius:8px">
+                                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem">
+                                    <strong style="color:#b47fff;font-size:.8rem">Current standings</strong>
+                                    <span id="total-votes" style="font-size:.7rem;color:#4a3a6a">
+                                        ${data.counts.reduce((a, b) => a + b.votes, 0)} vote${data.counts.reduce((a, b) => a + b.votes, 0) !== 1 ? 's' : ''} total
+                                    </span>
+                                </div>
+                                ${renderVoteChart(data)}
+                            </div>
+                        `;
+                    } else {
+                        // Voting open, user hasn't voted - show options
+                        voteStatusDiv.innerHTML = `
+                            <p style="color:#6b5a8a;margin-bottom:1rem;font-size:.9rem">
+                                Vote for this Thursday's theme! Voting closes Wednesday.
+                            </p>
+                            <div id="theme-options" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:.5rem">
+                                ${window.themeOptionsHtml}
+                            </div>
+                            <div id="vote-feedback" style="margin-top:.75rem;font-size:.85rem;font-weight:700;text-align:center;min-height:1.2rem"></div>
+                            ${renderThemePlaylists(data)}
+                            <div style="margin-top:1rem;padding:.75rem;background:#0a0a1a;border:1px solid #1e1e35;border-radius:8px">
+                                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem">
+                                    <strong style="color:#b47fff;font-size:.8rem">Current standings</strong>
+                                    <span id="total-votes" style="font-size:.7rem;color:#4a3a6a">
+                                        ${data.counts.reduce((a, b) => a + b.votes, 0)} vote${data.counts.reduce((a, b) => a + b.votes, 0) !== 1 ? 's' : ''} total
+                                    </span>
+                                </div>
+                                ${renderVoteChart(data)}
+                            </div>
+                        `;
+                        // Re-attach click handlers
+                        document.querySelectorAll('.theme-btn').forEach(btn => {
+                            btn.addEventListener('click', () => voteTheme(btn.dataset.theme));
+                        });
                     }
+} else {
+                        // Voting closed
+                        voteStatusDiv.innerHTML = `
+                            <div style="text-align:center;padding:1.5rem;color:#4a3a6a">
+                                <div style="font-size:2rem;margin-bottom:.5rem">🗓️</div>
+                                <div style="font-weight:700;margin-bottom:.25rem">Voting closed</div>
+                                <div style="font-size:.85rem">
+                                    Voting opens Monday for next Thursday.
+                                    ${data.winner ? `<div style="margin-top:.5rem;color:#b47fff">This week's theme: <strong>${escHtml(data.winner)}</strong></div>` : ''}
+                                </div>
+                            </div>
+                        `;
                 }
             } catch (_) {}
         }
 
+        function renderVoteChart(data) {
+            const allThemes = window.allThemes || [];
+            const voteMap = {};
+            data.counts.forEach(c => { voteMap[c.theme] = c.votes; });
+            const maxVotes = data.counts.length ? Math.max(...data.counts.map(c => c.votes)) : 0;
+
+            return `
+                <div id="vote-chart" style="display:flex;flex-direction:column;gap:.4rem">
+                    ${allThemes.map(theme => {
+                        const votes = voteMap[theme] ?? 0;
+                        const pct = maxVotes > 0 ? (votes / maxVotes * 100) : 0;
+                        const isLeader = votes === maxVotes && maxVotes > 0;
+                        return `
+                            <div class="vote-bar-row" style="display:flex;flex-direction:column;gap:.25rem;opacity:${votes > 0 || isLeader ? 1 : 0.5};position:relative">
+                                <span class="vote-bar-label" style="font-size:.75rem;font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:.05em">${escHtml(theme)}</span>
+                                <div class="vote-bar-track" style="height:24px;background:#0a0a1a;border:1px solid #2a2a4a;border-radius:12px;overflow:hidden">
+                                    ${pct > 0 ? `
+                                        <div class="vote-bar-fill"
+                                             style="height:100%;width:${pct}%;background:linear-gradient(90deg,#5b21b6,#b47fff);border-radius:12px;transition:width .5s ease;display:flex;align-items:center;justify-content:flex-end;padding-right:.5rem;box-sizing:border-box">
+                                            <span class="vote-count" style="font-size:.7rem;font-weight:700;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.5);white-space:nowrap">${votes}</span>
+                                        </div>
+                                    ` : ''}
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+        }
+
+        function renderThemePlaylists(data) {
+            if (!data.theme_playlists) return '';
+            return `
+                <div style="margin-top:1.5rem">
+                    <strong style="color:#b47fff;font-size:.8rem;display:block;margin-bottom:.5rem">Playlists per theme:</strong>
+                    <div style="display:flex;flex-direction:column;gap:.5rem">
+                        ${Object.entries(data.theme_playlists).map(([theme, playlists]) => `
+                            <div style="background:#0a0a1a;border:1px solid #1e1e35;border-radius:8px;padding:.75rem">
+                                <div style="font-weight:700;color:#b47fff;font-size:.75rem;margin-bottom:.5rem;text-transform:uppercase;letter-spacing:.05em">${escHtml(theme)}</div>
+                                <div style="display:flex;flex-wrap:wrap;gap:.5rem">
+                                    ${playlists.map(p => `<span style="font-size:.7rem;color:#8a7a9a;background:#14142b;padding:.25rem .5rem;border-radius:4px;border:1px solid #2a2a4a">${escHtml(p.label)}</span>`).join('')}
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
         // Poll theme vote status every 10 seconds when on that tab
-        let themeVotePollInterval;
+        let themeVotePollInterval = null;
+
+        function startThemeVotePolling() {
+            if (themeVotePollInterval) return;
+            themeVotePollInterval = setInterval(() => {
+                const tab = document.getElementById('tab-theme-vote');
+                if (tab && tab.classList.contains('active')) {
+                    refreshThemeVoteUI();
+                }
+            }, 10000);
+        }
+
+        function stopThemeVotePolling() {
+            if (themeVotePollInterval) {
+                clearInterval(themeVotePollInterval);
+                themeVotePollInterval = null;
+            }
+        }
 
         async function pollNowPlaying() {
             try {

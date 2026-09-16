@@ -1266,6 +1266,32 @@
                                 {% endfor %}
                             </div>
 
+                            {# Detailed votes per theme #}
+                            {% if theme_vote.detailed_votes is defined and theme_vote.detailed_votes|length > 0 %}
+                            <div style="margin-top:1.5rem;padding-top:1rem;border-top:1px solid #1e1e35">
+                                <strong style="color:#b47fff;font-size:.8rem">Individual votes</strong>
+                                <div style="display:flex;flex-direction:column;gap:.4rem;margin-top:.75rem">
+                                    {% set votesByTheme = {} %}
+                                    {% for vote in theme_vote.detailed_votes %}
+                                        {% set votesByTheme = votesByTheme|merge({(vote.theme): (votesByTheme[vote.theme] ?? [])|merge([vote])}) %}
+                                    {% endfor %}
+                                    {% for theme, votes in votesByTheme %}
+                                    <div style="background:#14142b;border:1px solid #2a2a4a;border-radius:6px;padding:.75rem">
+                                        <div style="font-weight:700;color:#b47fff;font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.5rem">{{ theme }}</div>
+                                        <div style="display:flex;flex-wrap:wrap;gap:.4rem">
+                                            {% for vote in votes %}
+                                            <span style="background:#0a0a1a;border:1px solid #2a2a4a;border-radius:12px;padding:.2rem .5rem;font-size:.7rem;color:#fff;display:flex;align-items:center;gap:.3rem">
+                                                {{ vote.voter }}
+                                                <span style="color:#6b5a8a;font-size:.65rem">{{ vote.voted_at|date('D H:i') }}</span>
+                                            </span>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            {% endif %}
+
                     {% else %}
                         <div style="text-align:center;padding:2rem;color:#4a3a6a">
                             <div style="font-size:2.5rem;margin-bottom:.5rem">🗓️</div>
@@ -2558,6 +2584,68 @@
         window.addEventListener('scroll', updateActiveLink, { passive: true });
         window.addEventListener('resize', updateActiveLink);
         updateActiveLink();
+
+        /* ── Theme Thursday vote polling (admin) ── */
+        let themeVotePollInterval = null;
+
+        async function pollAdminThemeVote() {
+            try {
+                const res = await fetch('{{ path('app_admin_theme_vote_status') }}');
+                const data = await res.json();
+
+                // Update vote count in section header
+                const countEl = document.getElementById('theme-vote-count');
+                if (countEl) {
+                    const total = data.counts.reduce((a, b) => a + b.votes, 0);
+                    countEl.textContent = total + ' vote' + (total !== 1 ? 's' : '');
+                }
+
+                // Update vote chart if voting is open
+                if (data.is_open) {
+                    const chartContainer = document.getElementById('vote-chart-admin');
+                    if (chartContainer) {
+                        const allThemes = {{ theme_vote.available_themes|json_encode|raw }};
+                        const voteMap = {};
+                        data.counts.forEach(c => { voteMap[c.theme] = c.votes; });
+                        const maxVotes = data.counts.length ? Math.max(...data.counts.map(c => c.votes)) : 0;
+
+                        chartContainer.innerHTML = allThemes.map(theme => {
+                            const votes = voteMap[theme] ?? 0;
+                            const pct = maxVotes > 0 ? (votes / maxVotes * 100) : 0;
+                            const isLeader = votes === maxVotes && maxVotes > 0;
+                            return `
+                                <div class="vote-bar-row" style="display:flex;flex-direction:column;gap:.25rem;opacity:${votes > 0 || isLeader ? 1 : 0.5}">
+                                    <span class="vote-bar-label" style="font-size:.75rem;font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:.05em">${escReq(theme)}</span>
+                                    <div class="vote-bar-track" style="height:26px;background:#0a0a1a;border:1px solid #2a2a4a;border-radius:13px;overflow:hidden;position:relative">
+                                        ${pct > 0 ? `
+                                            <div class="vote-bar-fill"
+                                                 style="height:100%;width:${pct}%;background:linear-gradient(90deg,#5b21b6,#b47fff);border-radius:13px;transition:width .5s ease;display:flex;align-items:center;justify-content:flex-end;padding-right:.5rem;box-sizing:border-box">
+                                                <span class="vote-count" style="font-size:.7rem;font-weight:700;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.5);white-space:nowrap">${votes}</span>
+                                            </div>
+                                        ` : ''}
+                                    </div>
+                                </div>
+                            `;
+                        }).join('');
+                    }
+                }
+            } catch (_) {}
+        }
+
+        function startAdminThemeVotePolling() {
+            if (themeVotePollInterval) return;
+            themeVotePollInterval = setInterval(pollAdminThemeVote, 10000);
+        }
+
+        function stopAdminThemeVotePolling() {
+            if (themeVotePollInterval) {
+                clearInterval(themeVotePollInterval);
+                themeVotePollInterval = null;
+            }
+        }
+
+        // Start polling if Theme Thursday section is visible (it's always on the page)
+        startAdminThemeVotePolling();
 
         /* ── Browser notifications for new song requests ── */
         let knownPendingIds = new Set();

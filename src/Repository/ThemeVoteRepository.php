@@ -78,4 +78,18 @@ class ThemeVoteRepository extends ServiceEntityRepository
 
         return $dayOfWeek >= 1 && $dayOfWeek <= 3; // Mon-Wed
     }
+
+    public function getDetailedVotes(string $weekStart): array
+    {
+        $conn = $this->getEntityManager()->getConnection();
+
+        $sql = '
+            SELECT tv.voter, tv.theme, tv.voted_at
+            FROM theme_vote tv
+            WHERE tv.week = :week
+            ORDER BY tv.voted_at ASC
+        ';
+
+        return $conn->fetchAllAssociative($sql, ['week' => $weekStart]);
+    }
 }

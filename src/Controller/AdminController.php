@@ -57,6 +57,7 @@ class AdminController extends AbstractController
         $isThursday = $dayOfWeek === 4;
 
         $counts = $this->themeVoteRepository->getVoteCounts($monday);
+        $detailedVotes = $this->themeVoteRepository->getDetailedVotes($monday);
         $winner = null;
         if (!empty($counts)) {
             $winner = $counts[0]['theme'];
@@ -91,6 +92,7 @@ class AdminController extends AbstractController
                 'counts' => $counts,
                 'max_votes' => $maxVotes,
                 'available_themes' => $availableThemes,
+                'detailed_votes' => $detailedVotes,
             ],
             'theme_thursday_options' => $themeThursdayOptions,
         ]);
@@ -655,6 +657,7 @@ class AdminController extends AbstractController
         $dayOfWeek = (int) $now->format('N');
 
         $counts = $this->themeVoteRepository->getVoteCounts($monday);
+        $detailedVotes = $this->themeVoteRepository->getDetailedVotes($monday);
         $isOpen = $dayOfWeek >= 1 && $dayOfWeek <= 3;
         $isThursday = $dayOfWeek === 4;
 
@@ -670,6 +673,7 @@ class AdminController extends AbstractController
             'is_thursday' => $isThursday,
             'winner' => $winner,
             'counts' => $counts,
+            'detailed_votes' => $detailedVotes,
         ]);
     }
 
@@ -708,6 +712,7 @@ class AdminController extends AbstractController
         $monday = $now->modify('monday this week')->format('Y-m-d');
 
         $counts = $this->themeVoteRepository->getVoteCounts($monday);
+        $detailedVotes = $this->themeVoteRepository->getDetailedVotes($monday);
         if (empty($counts)) {
             return new JsonResponse(['success' => true, 'winner' => null, 'message' => 'No votes cast this week']);
         }
@@ -719,6 +724,7 @@ class AdminController extends AbstractController
             'week' => $monday,
             'winner' => $winner,
             'counts' => $counts,
+            'detailed_votes' => $detailedVotes,
         ]);
     }
 
