@@ -37,6 +37,7 @@ class RadioController extends AbstractController
         private string $jiraAlarmAccount,
         private string $jiraAlarmLabels,
         private string $projectDir,
+        private bool $themeVoteTestMode = false,
     ) {}
 
     #[Route('/', name: 'app_radio', methods: ['GET'])]
@@ -52,9 +53,10 @@ class RadioController extends AbstractController
         }
 
         return $this->render('radio/index.html.twig', [
-            'station'      => 'SRS FM',
-            'soccer_start' => $soccerStart,
-            'soccer_end'   => $soccerEnd,
+            'station'           => 'SRS FM',
+            'soccer_start'      => $soccerStart,
+            'soccer_end'        => $soccerEnd,
+            'theme_vote_test_mode' => $this->themeVoteTestMode,
         ]);
     }
 

@@ -1486,7 +1486,7 @@ let alarmActive       = false;
 let confettiInterval  = null;
 
 // TEST MODE: Set to true to simulate voting open with mock data
-const THEME_VOTE_TEST_MODE = true;
+const THEME_VOTE_TEST_MODE = {{ theme_vote_test_mode ? 'true' : 'false' }};
 
 function updateDateTime() {
     const now = new Date();
