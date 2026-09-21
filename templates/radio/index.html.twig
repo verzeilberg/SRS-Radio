@@ -1683,7 +1683,7 @@ function renderPieChart(counts) {
 setInterval(updateDateTime, 1000);
 setInterval(fetchWeather, 300000); // Every 5 minutes
 setInterval(fetchBirthdays, 3600000); // Every hour
-setInterval(fetchThemeVote, 300000); // Every 5 minutes
+setInterval(fetchThemeVote, 5000); // Every 5 seconds
 updateDateTime();
 fetchWeather();
 fetchBirthdays();

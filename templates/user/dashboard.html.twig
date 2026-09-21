@@ -1193,6 +1193,20 @@
 
         pollNotes();
         setInterval(pollNotes, 5000);
+
+        /* ── Deep link to tab via URL hash ── */
+        (function () {
+            const hash = window.location.hash.replace('#', '');
+            const tabMap = {
+                'section-on-air': 'on-air',
+                'section-send-note': 'send-note',
+                'section-request': 'request',
+                'section-theme-thursday': 'theme-vote',
+            };
+            if (hash && tabMap[hash]) {
+                switchTab(tabMap[hash]);
+            }
+        })();
     </script>
 </body>
 </html>

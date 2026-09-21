@@ -1032,6 +1032,7 @@
             <li><a href="#section-playlist-pool" data-section="section-playlist-pool">Playlist pool</a></li>
             <li><a href="#section-theme-thursday" data-section="section-theme-thursday">Theme Thursday</a></li>
             <li><a href="#section-theme-thursday-options" data-section="section-theme-thursday-options">Theme Thu Options</a></li>
+            <li><a href="#section-teams-message" data-section="section-teams-message">Teams Message</a></li>
             <li><a href="#section-radio-log" data-section="section-radio-log">Radio log</a></li>
             <li><a href="#section-birthday-calendar" data-section="section-birthday-calendar">Birthday calendar</a></li>
             <li><a href="#section-wk-pool" data-section="section-wk-pool">WK Pool</a></li>
@@ -1247,11 +1248,11 @@
                                 {% set voteMap = voteMap|merge({(c.theme): c.votes}) %}
                             {% endfor %}
                             <div id="vote-chart-admin" style="display:flex;flex-direction:column;gap:.5rem">
-                                {% set maxVotes = theme_vote.max_votes %}
+                                {% set totalVotes = theme_vote.counts|reduce((a,b) => a+b.votes, 0) %}
                                 {% for theme in allThemes %}
                                     {% set votes = voteMap[theme] ?? 0 %}
-                                    {% set pct = maxVotes > 0 ? (votes / maxVotes * 100) : 0 %}
-                                    {% set isLeader = votes == maxVotes and maxVotes > 0 %}
+                                    {% set pct = totalVotes > 0 ? (votes / totalVotes * 100) : 0 %}
+                                    {% set isLeader = votes == totalVotes and totalVotes > 0 %}
                                     <div class="vote-bar-row" style="display:flex;flex-direction:column;gap:.25rem;opacity:{{ votes > 0 or isLeader ? 1 : 0.5 }}">
                                         <span class="vote-bar-label" style="font-size:.75rem;font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:.05em">{{ theme }}</span>
                                         <div class="vote-bar-track" style="height:26px;background:#0a0a1a;border:1px solid #2a2a4a;border-radius:13px;overflow:hidden;position:relative">
@@ -1304,6 +1305,53 @@
                             </div>
                         </div>
                     {% endif %}
+                </div>
+            </div>
+        </section>
+
+        {# ◀◀ Teams Message ◀◀ #}
+        <section id="section-teams-message" class="section-anchor">
+            <div class="section">
+                <div class="section-header">
+                    <h2>
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#b47fff" stroke-width="1.5" style="vertical-align:middle;margin-right:.25rem">
+                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                        </svg>
+                        Teams Message
+                    </h2>
+                </div>
+
+                <div class="section-card" style="padding:1.5rem">
+                    <div class="card-title" style="margin-bottom:1rem">Send message to Teams channel</div>
+                    <p style="font-size:.8rem;color:#6b5a8a;margin-bottom:1rem">Send a custom message to the configured Microsoft Teams webhook. The message will appear in the Teams channel.</p>
+
+                    <div class="field" style="margin-bottom:1rem">
+                        <label for="teams-title">Title (optional)</label>
+                        <input type="text" id="teams-title" class="pool-search-input" placeholder="SRS Radio Admin" style="flex:1;min-width:250px;padding:.5rem;border:1px solid #2a2a4a;border-radius:4px;background:#0a0a1a;color:#fff;font-family:inherit;font-size:.8rem">
+                    </div>
+
+                    <div class="field" style="margin-bottom:1rem">
+                        <label for="teams-message">Message</label>
+                        <textarea id="teams-message" rows="6" placeholder="Enter your message here... Supports markdown formatting.&#10;Examples:&#10;- **Bold text**&#10;- *Italic text*&#10;- `Code`&#10;- Link: [text](url)" style="width:100%;min-width:300px;padding:.75rem;border:1px solid #2a2a4a;border-radius:4px;background:#0a0a1a;color:#fff;font-family:inherit;font-size:.85rem;resize:vertical;box-sizing:border-box"></textarea>
+                    </div>
+
+                    <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+                        <button class="btn-pool-search" id="btn-teams-send" onclick="sendTeamsMessage()" style="padding:.5rem 1.25rem">📤 Send to Teams</button>
+                        <span id="teams-status" style="font-size:.75rem;color:#4a3a6a;min-height:1.5rem"></span>
+                    </div>
+
+                    <details style="margin-top:1.5rem;color:#6b5a8a;font-size:.8rem">
+                        <summary style="cursor:pointer">Markdown reference</summary>
+                        <div style="margin-top:.5rem;line-height:1.8">
+                            <code>**bold**</code> → <strong>bold</strong><br>
+                            <code>*italic*</code> → <em>italic</em><br>
+                            <code>`code`</code> → <code>code</code><br>
+                            <code>[link](url)</code> → <a href="#">link</a><br>
+                            <code>> quote</code> → blockquote<br>
+                            <code>- list item</code> → bullet list<br>
+                            <code>1. numbered</code> → numbered list
+                        </div>
+                    </details>
                 </div>
             </div>
         </section>
@@ -2229,6 +2277,49 @@
         loadPool();
         loadThemeThursdayOptions();
 
+        /* ── Teams Message ── */
+        async function sendTeamsMessage() {
+            const btn = document.getElementById('btn-teams-send');
+            const title = document.getElementById('teams-title').value.trim() || 'SRS Radio Admin';
+            const message = document.getElementById('teams-message').value.trim();
+            const statusEl = document.getElementById('teams-status');
+
+            if (!message) {
+                statusEl.textContent = '❌ Please enter a message';
+                statusEl.style.color = '#fca5a5';
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = 'Sending…';
+            statusEl.textContent = '';
+            statusEl.style.color = '#4a3a6a';
+
+            try {
+                const res = await fetch('{{ path('app_admin_teams_message') }}', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title, message }),
+                });
+                const data = await res.json();
+
+                if (res.ok && data.success) {
+                    statusEl.textContent = '✅ Message sent to Teams!';
+                    statusEl.style.color = '#86efac';
+                    document.getElementById('teams-message').value = '';
+                } else {
+                    statusEl.textContent = '❌ ' + (data.error || 'Failed to send');
+                    statusEl.style.color = '#fca5a5';
+                }
+            } catch (e) {
+                statusEl.textContent = '❌ Request failed: ' + e.message;
+                statusEl.style.color = '#fca5a5';
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '📤 Send to Teams';
+            }
+        }
+
         /* ── Users ── */
         async function toggleRole(id) {
             const btn = document.getElementById('btn-role-' + id);
@@ -2607,12 +2698,12 @@
                         const allThemes = {{ theme_vote.available_themes|json_encode|raw }};
                         const voteMap = {};
                         data.counts.forEach(c => { voteMap[c.theme] = c.votes; });
-                        const maxVotes = data.counts.length ? Math.max(...data.counts.map(c => c.votes)) : 0;
+                        const totalVotes = data.counts.reduce((sum, c) => sum + c.votes, 0);
 
                         chartContainer.innerHTML = allThemes.map(theme => {
                             const votes = voteMap[theme] ?? 0;
-                            const pct = maxVotes > 0 ? (votes / maxVotes * 100) : 0;
-                            const isLeader = votes === maxVotes && maxVotes > 0;
+                            const pct = totalVotes > 0 ? (votes / totalVotes * 100) : 0;
+                            const isLeader = votes === totalVotes && totalVotes > 0;
                             return `
                                 <div class="vote-bar-row" style="display:flex;flex-direction:column;gap:.25rem;opacity:${votes > 0 || isLeader ? 1 : 0.5}">
                                     <span class="vote-bar-label" style="font-size:.75rem;font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:.05em">${escReq(theme)}</span>

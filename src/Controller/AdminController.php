@@ -16,6 +16,7 @@ use App\Service\RemoteRadioService;
 use App\Service\SonosApiService;
 use App\Service\SonosService;
 use App\Service\SpotifyService;
+use App\Service\TeamsNotificationService;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -41,6 +42,7 @@ class AdminController extends AbstractController
         private ThemeVoteRepository $themeVoteRepository,
         private PlaylistRepository $playlistRepository,
         private ThemeThursdayOptionRepository $themeThursdayOptionRepository,
+        private ?TeamsNotificationService $teamsNotificationService,
     ) {}
 
     #[Route('', name: 'app_admin_dashboard')]
@@ -726,6 +728,32 @@ class AdminController extends AbstractController
             'counts' => $counts,
             'detailed_votes' => $detailedVotes,
         ]);
+    }
+
+    // ── Teams Message ────────────────────────────────────────────────────────────
+
+    #[Route('/api/teams-message', name: 'app_admin_teams_message', methods: ['POST'])]
+    public function sendTeamsMessage(Request $request): JsonResponse
+    {
+        $data = json_decode($request->getContent(), true);
+        $message = trim($data['message'] ?? '');
+        $title = trim($data['title'] ?? 'SRS Radio Admin');
+
+        if ($message === '') {
+            return new JsonResponse(['error' => 'Message is required'], 400);
+        }
+
+        if ($this->teamsNotificationService === null) {
+            return new JsonResponse(['error' => 'Teams webhook not configured. Set TEAMS_WEBHOOK_URL in .env'], 503);
+        }
+
+        $success = $this->teamsNotificationService->sendMessage($message, $title);
+
+        if ($success) {
+            return new JsonResponse(['success' => true, 'message' => 'Message sent to Teams']);
+        }
+
+        return new JsonResponse(['error' => 'Failed to send message to Teams'], 500);
     }
 
     // ── Theme Thursday Options ────────────────────────────────────────────────
