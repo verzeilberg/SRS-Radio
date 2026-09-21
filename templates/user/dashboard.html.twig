@@ -657,12 +657,12 @@
                         {% for c in theme_vote.counts %}
                             {% set voteMap = voteMap|merge({(c.theme): c.votes}) %}
                         {% endfor %}
+                        {% set totalVotes = theme_vote.counts|reduce((a,b) => a+b.votes, 0) %}
                         <div id="vote-chart" style="display:flex;flex-direction:column;gap:.4rem">
-                            {% set maxVotes = theme_vote.max_votes %}
                             {% for theme in allThemes %}
                                 {% set votes = voteMap[theme] ?? 0 %}
-                                {% set pct = maxVotes > 0 ? (votes / maxVotes * 100) : 0 %}
-                                {% set isLeader = votes == maxVotes and maxVotes > 0 %}
+                                {% set pct = totalVotes > 0 ? (votes / totalVotes * 100) : 0 %}
+                                {% set isLeader = votes == totalVotes and totalVotes > 0 %}
                                 <div class="vote-bar-row" style="display:flex;flex-direction:column;gap:.25rem;opacity:{{ votes > 0 or isLeader ? 1 : 0.5 }};position:relative">
                                     <span class="vote-bar-label" style="font-size:.75rem;font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:.05em">{{ theme }}</span>
                                     <div class="vote-bar-track" style="height:24px;background:#0a0a1a;border:1px solid #2a2a4a;border-radius:12px;overflow:hidden">
@@ -839,14 +839,14 @@
             const allThemes = window.allThemes || [];
             const voteMap = {};
             data.counts.forEach(c => { voteMap[c.theme] = c.votes; });
-            const maxVotes = data.counts.length ? Math.max(...data.counts.map(c => c.votes)) : 0;
+            const totalVotes = data.counts.reduce((sum, c) => sum + c.votes, 0);
 
             return `
                 <div id="vote-chart" style="display:flex;flex-direction:column;gap:.4rem">
                     ${allThemes.map(theme => {
                         const votes = voteMap[theme] ?? 0;
-                        const pct = maxVotes > 0 ? (votes / maxVotes * 100) : 0;
-                        const isLeader = votes === maxVotes && maxVotes > 0;
+                        const pct = totalVotes > 0 ? (votes / totalVotes * 100) : 0;
+                        const isLeader = votes === totalVotes && totalVotes > 0;
                         return `
                             <div class="vote-bar-row" style="display:flex;flex-direction:column;gap:.25rem;opacity:${votes > 0 || isLeader ? 1 : 0.5};position:relative">
                                 <span class="vote-bar-label" style="font-size:.75rem;font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:.05em">${escHtml(theme)}</span>
