@@ -38,4 +38,34 @@ class ColleagueRepository extends ServiceEntityRepository
             ->createNativeQuery($sql, $rsm)
             ->getResult();
     }
+
+    /** @return Colleague[] */
+    public function findUpcomingBirthdays(int $limit = 3): array
+    {
+        $now = new \DateTimeImmutable('today');
+
+        $all = $this->findAllOrderedByBirthday();
+
+        $upcoming = [];
+        foreach ($all as $c) {
+            $bdayMonth = (int) $c->getBirthdate()->format('m');
+            $bdayDay = (int) $c->getBirthdate()->format('d');
+
+            // Check if birthday is today or in the future this year
+            $thisYearBday = new \DateTimeImmutable($now->format('Y') . '-' . sprintf('%02d', $bdayMonth) . '-' . sprintf('%02d', $bdayDay));
+            if ($thisYearBday < $now) {
+                // Already passed this year, check next year
+                $thisYearBday = new \DateTimeImmutable(($now->format('Y') + 1) . '-' . sprintf('%02d', $bdayMonth) . '-' . sprintf('%02d', $bdayDay));
+            }
+
+            $diff = $now->diff($thisYearBday);
+            $c->daysUntil = (int) $diff->format('%a');
+            $upcoming[] = $c;
+        }
+
+        // Sort by days until birthday (today = 0 first)
+        usort($upcoming, fn($a, $b) => $a->daysUntil <=> $b->daysUntil);
+
+        return array_slice($upcoming, 0, $limit);
+    }
 }

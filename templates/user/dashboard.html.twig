@@ -714,7 +714,7 @@
         // Store theme options for re-rendering
         const themeOptionsContainer = document.getElementById('theme-options');
         window.themeOptionsHtml = themeOptionsContainer ? themeOptionsContainer.innerHTML : '';
-        window.allThemes = {% set themes = theme_vote.available_themes %}{{ themes|json_encode|raw }}{% endset %} || [];
+        window.allThemes = {{ theme_vote.available_themes|json_encode|raw }} || [];
 
         /* ── Theme Thursday voting ── */
         async function voteTheme(theme) {

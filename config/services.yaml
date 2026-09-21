@@ -131,3 +131,11 @@ services:
         arguments:
             $feedUrl: '%env(NEWS_FEED_URL)%'
 
+    App\Service\TeamsNotificationService:
+        arguments:
+            $webhookUrl: '%env(TEAMS_WEBHOOK_URL)%'
+
+    App\Command\ThemeVoteAnnounceCommand:
+        arguments:
+            $language: '%env(DJ_LANGUAGE)%'
+

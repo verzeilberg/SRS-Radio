@@ -60,6 +60,12 @@ class JiraMonitorCommand extends Command
             try {
                 $tickets     = $this->jira->getHighestPriorityTickets($labels, $this->alarmAccount);
                 $currentKeys = array_keys($tickets);
+                
+                // DEBUG
+                $io->writeln(sprintf('[DEBUG] Fetched %d tickets', count($tickets)));
+                foreach ($tickets as $key => $ticket) {
+                    $io->writeln(sprintf('[DEBUG]   %s - %s [%s]', $key, $ticket['summary'], $ticket['status']));
+                }
 
                 $this->writeStateFile($tickets);
 

@@ -32,6 +32,8 @@ class JiraService
             $jql .= ' AND labels in (' . $quoted . ')';
         }
 
+        error_log('[JiraService] JQL: ' . $jql);
+
         $response = $this->httpClient->request('GET', rtrim($this->host, '/') . '/rest/api/3/search/jql', [
             'auth_basic' => [$this->user, $this->token],
             'query'      => [
@@ -45,6 +47,9 @@ class JiraService
             throw new \RuntimeException(sprintf('Jira API error %d: %s', $response->getStatusCode(), $response->getContent(false)));
         }
 
+        $data = $response->toArray();
+        error_log('[JiraService] Response: ' . json_encode($data));
+        
         $tickets = [];
         foreach ($response->toArray()['issues'] ?? [] as $issue) {
             $tickets[$issue['key']] = [
