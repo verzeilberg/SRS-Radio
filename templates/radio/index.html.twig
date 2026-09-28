@@ -1576,9 +1576,15 @@ async function fetchThemeVote() {
                 is_thursday: false,
                 winner: null,
                 counts: [
-                    { theme: 'Nederpop Classics', count: 12 },
-                    { theme: '90s Alternatief', count: 8 },
-                    { theme: 'Soul & Funk', count: 5 }
+                    { theme: 'Nederpop Classics', votes: 12 },
+                    { theme: '90s Alternatief', votes: 8 },
+                    { theme: 'Soul & Funk', votes: 5 }
+                ],
+                available_themes: [
+                    'Nederpop Classics',
+                    '90s Alternatief',
+                    'Soul & Funk',
+                    'Extra Theme'
                 ]
             };
             return renderThemeVoteStatus(mockData);
@@ -1600,10 +1606,21 @@ function renderThemeVoteStatus(data) {
     const colors = ['#2ea3f2', '#86efac', '#f59e0b', '#f87171', '#a855f7', '#06b6d4'];
 
     if (data.is_open) {
-        if (data.counts && data.counts.length > 0) {
-            const total = data.counts.reduce((sum, c) => sum + c.count, 0);
-            const countsHtml = data.counts.map((c, i) => {
-                const percentage = total > 0 ? Math.round((c.count / total) * 100) : 0;
+        const counts = data.counts || [];
+        const availableThemes = data.available_themes || [];
+
+        const mergedCounts = availableThemes.length > 0
+            ? availableThemes.map(theme => {
+                const existing = counts.find(c => c.theme === theme);
+                const voteCount = existing ? (existing.votes ?? existing.count ?? 0) : 0;
+                return { theme, votes: voteCount };
+            })
+            : counts.map(c => ({ theme: c.theme, votes: c.votes ?? c.count ?? 0 }));
+
+        if (mergedCounts.length > 0) {
+            const total = mergedCounts.reduce((sum, c) => sum + c.votes, 0);
+            const countsHtml = mergedCounts.map((c, i) => {
+                const percentage = total > 0 ? Math.round((c.votes / total) * 100) : 0;
                 const color = colors[i % colors.length];
                 return `<div class="vote-count" style="display:flex;align-items:center;gap:0.5rem;margin:0.35rem 0;">
                     <span style="width:12px;height:12px;background:${color};border-radius:3px;flex-shrink:0;"></span>
@@ -1612,6 +1629,8 @@ function renderThemeVoteStatus(data) {
                 </div>`;
             }).join('');
             statusEl.innerHTML = `<div class="vote-counts">${countsHtml}</div>`;
+        } else {
+            statusEl.innerHTML = '<span class="closed">Nog geen stemmen</span>';
         }
     } else if (data.is_thursday) {
         statusEl.innerHTML = data.winner

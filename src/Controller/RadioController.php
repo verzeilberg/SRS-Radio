@@ -4,6 +4,7 @@ namespace App\Controller;
 use App\Entity\SonosToken;
 use App\Entity\SpotifyToken;
 use App\Repository\ColleagueRepository;
+use App\Repository\ThemeThursdayOptionRepository;
 use App\Repository\ThemeVoteRepository;
 use App\Repository\TrackRepository;
 use App\Service\JiraService;
@@ -29,6 +30,7 @@ class RadioController extends AbstractController
         private RadioStateService $radioState,
         private EntityManagerInterface $em,
         private ThemeVoteRepository $themeVoteRepository,
+        private ThemeThursdayOptionRepository $themeThursdayOptionRepository,
         private ColleagueRepository $colleagueRepository,
         private JiraService $jiraService,
         private NewsService $newsService,
@@ -258,6 +260,7 @@ class RadioController extends AbstractController
         $isThursday = $dayOfWeek === 4;
 
         $counts = $this->themeVoteRepository->getVoteCounts($monday);
+        $availableThemes = $this->themeThursdayOptionRepository->findAvailableTitles();
 
         $winner = null;
         if (!empty($counts)) {
@@ -271,6 +274,7 @@ class RadioController extends AbstractController
             'is_thursday' => $isThursday,
             'winner' => $winner,
             'counts' => $counts,
+            'available_themes' => $availableThemes,
         ]);
     }
 }
