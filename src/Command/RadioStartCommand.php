@@ -193,6 +193,14 @@ class RadioStartCommand extends Command
             $this->running = false;
             return;
         }
+        if (file_exists($this->projectDir . '/var/jira-alarm.json')) {
+            // Don't handle here - let the main loop handle it to avoid reentrancy
+            // Just ensure we don't stay paused if alarm comes in
+            if ($this->paused) {
+                $this->paused = false;
+                $this->doResumeBackend();
+            }
+        }
         $shouldBePaused = file_exists(self::pauseFlagFile());
         if ($shouldBePaused && !$this->paused) {
             $this->paused = true;
@@ -403,6 +411,11 @@ class RadioStartCommand extends Command
 
         while ($this->running) {
             $this->checkSignals();
+
+            if (file_exists($this->projectDir . '/var/jira-alarm.json')) {
+                $this->handleJiraAlarm($io);
+                continue;
+            }
 
             $track = $nextTrack;
 
@@ -827,6 +840,9 @@ class RadioStartCommand extends Command
         $io->writeln(sprintf('Waiting until %s (%d minutes)...', $time, (int) ($seconds / 60)));
 
         while (true) {
+            if (file_exists($this->projectDir . '/var/jira-alarm.json')) {
+                $this->handleJiraAlarm($io);
+            }
             $remaining = $target->getTimestamp() - (new \DateTimeImmutable())->getTimestamp();
             if ($remaining <= 0) {
                 break;
