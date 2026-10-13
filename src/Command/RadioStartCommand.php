@@ -92,6 +92,7 @@ class RadioStartCommand extends Command
         private int $weatherHour = 12,
         private int $weatherMinute = 20,
         private string $djClipIp = '',
+        private bool $alarmLedsEnabled = false,
     ) {
         parent::__construct();
 
@@ -1632,7 +1633,9 @@ class RadioStartCommand extends Command
             try { $this->spotify->pause(); } catch (\Throwable) {}
         }
 
-        // Clips are ready: fullscreen alarm + playback, one ticket after another
+        // Clips are ready: LEDs, fullscreen alarm + playback, one ticket after another
+        $this->startAlarmLeds($io, array_sum(array_map(fn(array $c) => $c['duration'] + 2.0, $clips)));
+
         try {
             foreach ($clips as $clip) {
                 if (!$this->running) {
@@ -1722,6 +1725,26 @@ class RadioStartCommand extends Command
             'duration'  => $this->tts->getFileDuration($sirenPath),
             'generated' => false,
         ];
+    }
+
+    /**
+     * Breathes the LED strip red for the length of the alarm. The script turns the strip off
+     * by itself when the time is up, so we never have to signal the root-owned process.
+     * Needs a sudoers rule on the Pi, see leds/README.md.
+     */
+    private function startAlarmLeds(SymfonyStyle $io, float $seconds): void
+    {
+        if (!$this->alarmLedsEnabled) {
+            return;
+        }
+
+        $cmd = sprintf(
+            'sudo -n /usr/bin/python3 %s %d > /dev/null 2>&1 &',
+            escapeshellarg($this->projectDir . '/leds/red_leds.py'),
+            (int) ceil($seconds)
+        );
+        shell_exec($cmd);
+        $io->writeln(sprintf('<comment>[ALARM] LED strip red for %ds</comment>', (int) ceil($seconds)));
     }
 
     private function playAlarmClip(SymfonyStyle $io, array $clip): void

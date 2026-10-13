@@ -73,6 +73,7 @@ services:
             $weatherHour: '%env(int:WEATHER_HOUR)%'
             $weatherMinute: '%env(int:WEATHER_MINUTE)%'
             $djClipIp: '%env(DJ_CLIP_IP)%'
+            $alarmLedsEnabled: '%env(bool:ALARM_LEDS_ENABLED)%'
 
     App\Service\TextToSpeechService:
         arguments:
