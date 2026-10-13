@@ -68,8 +68,10 @@ class RadioController extends AbstractController
         $stateFile = $this->projectDir . '/var/jira-state.json';
 
         if (file_exists($stateFile) && (time() - filemtime($stateFile)) < 120) {
-            $data = json_decode(file_get_contents($stateFile), true);
-            return new JsonResponse($data['tickets'] ?? []);
+            $data    = json_decode(file_get_contents($stateFile), true);
+            $pending = $this->pendingAlarmKeys();
+            $tickets = array_filter($data['tickets'] ?? [], fn(array $t) => !in_array($t['key'] ?? null, $pending, true));
+            return new JsonResponse(array_values($tickets));
         }
 
         // Fallback when jira:monitor is not running
@@ -80,6 +82,31 @@ class RadioController extends AbstractController
         } catch (\Throwable) {
             return new JsonResponse([]);
         }
+    }
+
+    /**
+     * Ticket keys whose alarm clip radio:start is still generating. They stay hidden so the
+     * red block appears together with the fullscreen alarm. Stale files are ignored, so a
+     * stopped radio never hides a ticket for long.
+     */
+    private function pendingAlarmKeys(): array
+    {
+        $keys = [];
+        foreach (['/var/jira-alarm.json', '/var/jira-alarm.json.processing'] as $file) {
+            $path = $this->projectDir . $file;
+            if (!file_exists($path) || (time() - filemtime($path)) > 180) {
+                continue;
+            }
+            $decoded = json_decode((string) @file_get_contents($path), true);
+            $alarms  = is_array($decoded) ? (isset($decoded['key']) ? [$decoded] : $decoded) : [];
+            foreach ($alarms as $alarm) {
+                if (isset($alarm['key'])) {
+                    $keys[] = $alarm['key'];
+                }
+            }
+        }
+
+        return $keys;
     }
 
     #[Route('/setup', name: 'setup', methods: ['GET'])]

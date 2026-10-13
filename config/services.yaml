@@ -141,8 +141,3 @@ services:
         arguments:
             $language: '%env(DJ_LANGUAGE)%'
 
-    App\Command\GenerateAlarmBroadcastCommand:
-        arguments:
-            $projectDir: '%kernel.project_dir%'
-            $djClipIp: '%env(DJ_CLIP_IP)%'
-
