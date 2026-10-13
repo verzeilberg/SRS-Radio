@@ -65,6 +65,9 @@ class RadioStartCommand extends Command
     private ?string $preGeneratedDjText = null;
     private ?string $preGeneratedDjType = 'between_tracks';
 
+    // Pre-generated alarm siren clip (generated at startup for instant playback)
+    private ?string $preGeneratedAlarmUrl = null;
+
     // Built in constructor so WEATHER_HOUR can be injected: [hour, day-of-week, type]
     private array $timeEvents;
 
@@ -393,6 +396,9 @@ class RadioStartCommand extends Command
         $djTargetIp = $this->sonosApi->getPlayerIp()
             ?: ($this->sonos->getIp() ?: ($this->djClipIp ?: ''));
         $this->autoDetectServerUrl($io, $djTargetIp);
+
+        // Pre-generate alarm siren clip for instant playback
+        $this->pregenerateAlarmClip($io);
 
         $startAt = $input->getOption('start-at');
         if ($startAt !== null) {
@@ -1610,52 +1616,11 @@ class RadioStartCommand extends Command
             try { $this->spotify->pause(); } catch (\Throwable) {}
         }
 
-        try {
-            // DJ emergency broadcast with siren as background bed
-            $io->writeln('<comment>[ALARM] Generating DJ emergency broadcast...</comment>');
-            try {
-                $djText = $this->djService->generate(new DjContext(
-                    station: 'SRS FM',
-                    track:   '',
-                    artist:  '',
-                    mood:    'urgent',
-                    hour:    (int) date('H'),
-                    type:    'alarm',
-                    alarmKey:     $alarm['key']     ?? '',
-                    alarmSummary: $alarm['summary'] ?? '',
-                ));
-                $io->writeln('<info>[ALARM] DJ:</info> ' . $djText);
+        // PHASE 1: Play pre-generated siren immediately (instant, no TTS delay)
+        $this->playPreGeneratedAlarm($io);
 
-                $sirenPath = $this->projectDir . '/public/sounds/air_raid_siren.mp3';
-                $audioUrl  = $this->tts->generateWithBed($djText, $sirenPath, 0.35);
-                $duration  = $this->tts->getDuration($audioUrl);
-                $io->writeln(sprintf('<comment>[ALARM] DJ clip: %s (%.1fs)</comment>', $audioUrl, $duration));
-
-                if ($this->sonosApi->getGroupId()) {
-                    $groupVol = $this->sonosApi->getGroupVolume() ?? 40;
-                    $clipVol  = min(100, $groupVol + 5);
-                    $io->writeln(sprintf('<comment>[ALARM] Playing via Sonos API (vol %d)</comment>', $clipVol));
-                    $this->sonosApi->playAudioClip($audioUrl, $clipVol);
-                    $end = microtime(true) + $duration + 1.0;
-                    while (microtime(true) < $end && $this->running) {
-                        $this->checkSignals();
-                        usleep(300_000);
-                    }
-                } else {
-                    $io->writeln('<comment>[ALARM] Playing via UPnP</comment>');
-                    $this->sonos->playHttpClip($audioUrl);
-                    $this->sonos->waitForClipToEnd((int) ($duration + 5));
-                }
-                $this->tts->delete($audioUrl);
-                $io->writeln('<comment>[ALARM] DJ broadcast done.</comment>');
-            } catch (\Throwable $e) {
-                $io->warning('[ALARM] DJ broadcast failed: ' . $e->getMessage());
-            }
-        } catch (\Throwable $e) {
-            $io->warning('Alarm playback failed: ' . $e->getMessage());
-        } finally {
-            $this->radioState->clearAlarm();
-        }
+        // PHASE 2: Generate custom DJ announcement in background, play when ready
+        $this->generateAndPlayCustomAlarm($io, $alarm);
 
         // Resume track from saved position
         if ($this->currentTrack === null) {
@@ -1678,6 +1643,75 @@ class RadioStartCommand extends Command
         } catch (\Throwable $e) {
             $io->warning('Resume after alarm failed: ' . $e->getMessage());
         }
+
+        $this->radioState->clearAlarm();
+    }
+
+    /** Pre-generate a static alarm siren clip at startup for instant playback. */
+    private function pregenerateAlarmClip(SymfonyStyle $io): void
+    {
+        try {
+            $sirenPath = $this->projectDir . '/public/sounds/air_raid_siren.mp3';
+            if (!file_exists($sirenPath)) {
+                $io->warning('Siren file not found at ' . $sirenPath);
+                return;
+            }
+            // Generate a short TTS intro + siren bed, or just use the raw siren
+            $introText = 'Emergency broadcast. Critical Jira alert.';
+            $this->preGeneratedAlarmUrl = $this->tts->generateWithBed($introText, $sirenPath, 0.4);
+            $duration = $this->tts->getDuration($this->preGeneratedAlarmUrl);
+            $io->writeln(sprintf('<comment>[ALARM] Pre-generated siren clip: %.1fs</comment>', $duration));
+        } catch (\Throwable $e) {
+            $io->warning('Failed to pre-generate alarm clip: ' . $e->getMessage());
+            // Fallback: use raw siren file directly
+            $this->preGeneratedAlarmUrl = $sirenPath;
+        }
+    }
+
+    /** Play the pre-generated alarm clip immediately (no TTS delay). */
+    private function playPreGeneratedAlarm(SymfonyStyle $io): void
+    {
+        if (!$this->preGeneratedAlarmUrl) {
+            $io->warning('[ALARM] No pre-generated alarm clip available');
+            return;
+        }
+
+        try {
+            $duration = $this->tts->getDuration($this->preGeneratedAlarmUrl);
+            $io->writeln(sprintf('<comment>[ALARM] Playing instant siren (%.1fs)</comment>', $duration));
+
+            if ($this->sonosApi->getGroupId()) {
+                $groupVol = $this->sonosApi->getGroupVolume() ?? 40;
+                $clipVol  = min(100, $groupVol + 10);
+                $io->writeln(sprintf('<comment>[ALARM] Playing via Sonos API (vol %d)</comment>', $clipVol));
+                $this->sonosApi->playAudioClip($this->preGeneratedAlarmUrl, $clipVol);
+                $end = microtime(true) + $duration + 1.0;
+                while (microtime(true) < $end && $this->running) {
+                    $this->checkSignals();
+                    usleep(300_000);
+                }
+            } else {
+                $io->writeln('<comment>[ALARM] Playing via UPnP</comment>');
+                $this->sonos->playHttpClip($this->preGeneratedAlarmUrl);
+                $this->sonos->waitForClipToEnd((int) ($duration + 2));
+            }
+        } catch (\Throwable $e) {
+            $io->warning('[ALARM] Instant siren playback failed: ' . $e->getMessage());
+        }
+    }
+
+    /** Generate custom DJ announcement in background and play when ready. */
+    private function generateAndPlayCustomAlarm(SymfonyStyle $io, array $alarm): void
+    {
+        // Run asynchronously via background process to not block radio
+        $cmd = sprintf(
+            'php %s/bin/console app:generate-alarm-broadcast "%s" "%s" > /dev/null 2>&1 &',
+            escapeshellarg($this->projectDir),
+            escapeshellarg($alarm['key'] ?? ''),
+            escapeshellarg($alarm['summary'] ?? '')
+        );
+        shell_exec($cmd);
+        $io->writeln('<comment>[ALARM] Custom DJ broadcast queued in background</comment>');
     }
 
     private function autoDetectServerUrl(SymfonyStyle $io, string $targetIp = ''): void
