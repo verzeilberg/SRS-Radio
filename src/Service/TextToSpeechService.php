@@ -37,7 +37,7 @@ class TextToSpeechService
     {
         $dir = $this->projectDir . '/public/sounds/dj';
         if (!is_dir($dir)) {
-            mkdir($dir, 0755, true);
+            mkdir($dir, 0775, true);
         }
 
         $voicePath = $dir . '/' . sha1($text . $this->provider . $this->voice . $this->piperModel . $this->elevenLabsVoiceId) . '_voice.mp3';
@@ -208,7 +208,7 @@ class TextToSpeechService
     {
         $dir = $this->projectDir . '/public/sounds/dj';
         if (!is_dir($dir)) {
-            mkdir($dir, 0755, true);
+            mkdir($dir, 0775, true);
         }
 
         $voicePath = $dir . '/' . sha1($text . $this->provider . $this->voice . $this->piperModel . $this->elevenLabsVoiceId) . '_voice.mp3';

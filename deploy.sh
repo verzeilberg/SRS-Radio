@@ -48,6 +48,8 @@ if [[ "$MODE" == "update" ]]; then
     ok "Migrations applied"
 
     chown -R www-data:www-data "$SCRIPT_DIR/var" "$SCRIPT_DIR/public/sounds"
+    chmod -R ug+rwX "$SCRIPT_DIR/var" "$SCRIPT_DIR/public/sounds"
+    find "$SCRIPT_DIR/public/sounds" -type d -exec chmod g+s {} +
     ok "Permissions fixed"
 
     systemctl reload php8.4-fpm
