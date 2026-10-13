@@ -100,16 +100,33 @@ class JiraMonitorCommand extends Command
         return Command::SUCCESS;
     }
 
+    /**
+     * Appends the ticket to the alarm queue file. radio:start consumes the whole
+     * queue at once, so several new tickets in one poll are all announced.
+     */
     private function writeAlarmFile(array $ticket): void
     {
-        file_put_contents(
-            $this->projectDir . '/var/jira-alarm.json',
-            json_encode([
-                'url'     => $this->alarmClipUrl,
-                'key'     => $ticket['key'],
-                'summary' => $ticket['summary'],
-            ])
-        );
+        $alarmFile = $this->projectDir . '/var/jira-alarm.json';
+
+        $queue = [];
+        if (file_exists($alarmFile)) {
+            $existing = json_decode((string) @file_get_contents($alarmFile), true);
+            if (is_array($existing)) {
+                // Older format: a single alarm object instead of a list
+                $queue = isset($existing['key']) ? [$existing] : $existing;
+            }
+        }
+
+        $queue[] = [
+            'url'     => $this->alarmClipUrl,
+            'key'     => $ticket['key'],
+            'summary' => $ticket['summary'],
+        ];
+
+        // Write to a temp file and rename so radio:start never reads a half-written file
+        $tmpFile = $alarmFile . '.tmp';
+        file_put_contents($tmpFile, json_encode($queue));
+        rename($tmpFile, $alarmFile);
     }
 
     private function writeStateFile(array $tickets): void

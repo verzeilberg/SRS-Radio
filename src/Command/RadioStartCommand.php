@@ -67,6 +67,7 @@ class RadioStartCommand extends Command
 
     // Pre-generated alarm siren clip (generated at startup for instant playback)
     private ?string $preGeneratedAlarmUrl = null;
+    private float   $preGeneratedAlarmDuration = 20.0;
 
     // Built in constructor so WEATHER_HOUR can be injected: [hour, day-of-week, type]
     private array $timeEvents;
@@ -1590,12 +1591,29 @@ class RadioStartCommand extends Command
             return;
         }
 
-        $alarm = json_decode(file_get_contents($alarmFile), true) ?? [];
-        @unlink($alarmFile);
+        // Claim the file atomically so jira:monitor can start a new queue meanwhile
+        $claimedFile = $alarmFile . '.processing';
+        if (!@rename($alarmFile, $claimedFile)) {
+            return;
+        }
+        $decoded = json_decode((string) file_get_contents($claimedFile), true);
+        @unlink($claimedFile);
 
-        $io->warning(sprintf('[ALARM] %s — %s', $alarm['key'] ?? '?', $alarm['summary'] ?? '?'));
+        // Older format: a single alarm object instead of a list
+        $alarms = is_array($decoded) ? (isset($decoded['key']) ? [$decoded] : array_values($decoded)) : [];
+        if (!$alarms) {
+            return;
+        }
 
-        $this->radioState->setAlarm($alarm['key'] ?? '?', $alarm['summary'] ?? '');
+        foreach ($alarms as $alarm) {
+            $io->warning(sprintf('[ALARM] %s — %s', $alarm['key'] ?? '?', $alarm['summary'] ?? '?'));
+        }
+
+        $first = $alarms[0];
+        $this->radioState->setAlarm(
+            count($alarms) > 1 ? sprintf('%s (+%d)', $first['key'] ?? '?', count($alarms) - 1) : ($first['key'] ?? '?'),
+            $first['summary'] ?? ''
+        );
 
         $resumePosition = 0;
 
@@ -1619,8 +1637,8 @@ class RadioStartCommand extends Command
         // PHASE 1: Play pre-generated siren immediately (instant, no TTS delay)
         $this->playPreGeneratedAlarm($io);
 
-        // PHASE 2: Generate custom DJ announcement in background, play when ready
-        $this->generateAndPlayCustomAlarm($io, $alarm);
+        // PHASE 2: Generate custom DJ announcements in background, play when ready
+        $this->generateAndPlayCustomAlarm($io, $alarms);
 
         // Resume track from saved position
         if ($this->currentTrack === null) {
@@ -1658,13 +1676,17 @@ class RadioStartCommand extends Command
             }
             // Generate a short TTS intro + siren bed, or just use the raw siren
             $introText = 'Emergency broadcast. Critical Jira alert.';
-            $this->preGeneratedAlarmUrl = $this->tts->generateWithBed($introText, $sirenPath, 0.4);
-            $duration = $this->tts->getDuration($this->preGeneratedAlarmUrl);
-            $io->writeln(sprintf('<comment>[ALARM] Pre-generated siren clip: %.1fs</comment>', $duration));
+            $this->preGeneratedAlarmUrl      = $this->tts->generateWithBed($introText, $sirenPath, 0.4);
+            $this->preGeneratedAlarmDuration = $this->tts->getDuration($this->preGeneratedAlarmUrl);
+            $io->writeln(sprintf('<comment>[ALARM] Pre-generated siren clip: %.1fs</comment>', $this->preGeneratedAlarmDuration));
         } catch (\Throwable $e) {
             $io->warning('Failed to pre-generate alarm clip: ' . $e->getMessage());
-            // Fallback: use raw siren file directly
-            $this->preGeneratedAlarmUrl = $sirenPath;
+            // Fallback: serve the raw siren file over HTTP so Sonos can fetch it
+            if (isset($sirenPath) && file_exists($sirenPath)) {
+                $this->preGeneratedAlarmUrl      = rtrim($this->tts->getServerBaseUrl(), '/') . '/sounds/air_raid_siren.mp3';
+                $this->preGeneratedAlarmDuration = $this->tts->getFileDuration($sirenPath);
+                $io->writeln('<comment>[ALARM] Falling back to raw siren: ' . $this->preGeneratedAlarmUrl . '</comment>');
+            }
         }
     }
 
@@ -1677,7 +1699,7 @@ class RadioStartCommand extends Command
         }
 
         try {
-            $duration = $this->tts->getDuration($this->preGeneratedAlarmUrl);
+            $duration = $this->preGeneratedAlarmDuration;
             $io->writeln(sprintf('<comment>[ALARM] Playing instant siren (%.1fs)</comment>', $duration));
 
             if ($this->sonosApi->getGroupId()) {
@@ -1701,17 +1723,22 @@ class RadioStartCommand extends Command
     }
 
     /** Generate custom DJ announcement in background and play when ready. */
-    private function generateAndPlayCustomAlarm(SymfonyStyle $io, array $alarm): void
+    private function generateAndPlayCustomAlarm(SymfonyStyle $io, array $alarms): void
     {
-        // Run asynchronously via background process to not block radio
-        $cmd = sprintf(
-            'php %s/bin/console app:generate-alarm-broadcast "%s" "%s" > /dev/null 2>&1 &',
-            escapeshellarg($this->projectDir),
-            escapeshellarg($alarm['key'] ?? ''),
-            escapeshellarg($alarm['summary'] ?? '')
+        // One background shell runs the broadcasts one after another so they don't overlap.
+        // Ticket text comes from Jira: every argument must go through escapeshellarg() only.
+        $console  = escapeshellarg($this->projectDir . '/bin/console');
+        $commands = array_map(
+            fn(array $alarm) => sprintf(
+                'php %s app:generate-alarm-broadcast %s %s',
+                $console,
+                escapeshellarg($alarm['key'] ?? ''),
+                escapeshellarg($alarm['summary'] ?? '')
+            ),
+            $alarms
         );
-        shell_exec($cmd);
-        $io->writeln('<comment>[ALARM] Custom DJ broadcast queued in background</comment>');
+        shell_exec('(' . implode('; ', $commands) . ') > /dev/null 2>&1 &');
+        $io->writeln(sprintf('<comment>[ALARM] %d custom DJ broadcast(s) queued in background</comment>', count($alarms)));
     }
 
     private function autoDetectServerUrl(SymfonyStyle $io, string $targetIp = ''): void
