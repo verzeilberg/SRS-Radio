@@ -93,6 +93,7 @@ class RadioStartCommand extends Command
         private int $weatherMinute = 20,
         private string $djClipIp = '',
         private bool $alarmLedsEnabled = false,
+        private string $alarmLedsPython = '/usr/bin/python3',
     ) {
         parent::__construct();
 
@@ -1739,7 +1740,8 @@ class RadioStartCommand extends Command
         }
 
         $cmd = sprintf(
-            'sudo -n /usr/bin/python3 %s %d > /dev/null 2>&1 &',
+            'sudo -n %s %s %d > /dev/null 2>&1 &',
+            escapeshellarg($this->alarmLedsPython),
             escapeshellarg($this->projectDir . '/leds/red_leds.py'),
             (int) ceil($seconds)
         );

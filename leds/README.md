@@ -4,20 +4,23 @@ NeoPixel strip (GRB) on GPIO 18 of the Raspberry Pi. The scripts need root for G
 
 ## Jira alarm
 
-`radio:start` runs `red_leds.py <seconds>` while the alarm plays when `ALARM_LEDS_ENABLED=1`
-(set it in `.env.local` on the Pi). The script turns the strip off when the time is up.
+`radio:start` runs `red_leds.py <seconds>` while the alarm plays when `ALARM_LEDS_ENABLED=1`.
+The script turns the strip off when the time is up.
 
-One-time setup on the Pi:
+On the Pi the NeoPixel libraries live in the venv `/home/srs/scripts/.venv`. One-time setup:
 
 ```bash
-sudo pip3 install --break-system-packages adafruit-circuitpython-neopixel
-echo 'srs ALL=(root) NOPASSWD: /usr/bin/python3 /var/www/srs-radio/leds/red_leds.py *' \
+cat >> .env.local <<'ENV'
+ALARM_LEDS_ENABLED=1
+ALARM_LEDS_PYTHON=/home/srs/scripts/.venv/bin/python3
+ENV
+echo 'srs ALL=(root) NOPASSWD: /home/srs/scripts/.venv/bin/python3 /var/www/srs-radio/leds/red_leds.py *' \
   | sudo tee /etc/sudoers.d/srs-radio-leds
 sudo chmod 440 /etc/sudoers.d/srs-radio-leds
 sudo visudo -c
 ```
 
-Test: `sudo -u srs sudo -n /usr/bin/python3 /var/www/srs-radio/leds/red_leds.py 5`
+Test: `sudo -u srs sudo -n /home/srs/scripts/.venv/bin/python3 /var/www/srs-radio/leds/red_leds.py 5`
 
 ## Scripts
 
