@@ -1,6 +1,7 @@
 <?php
 namespace App\Service;
 
+use Psr\Log\LoggerInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 class TextToSpeechService
@@ -16,6 +17,7 @@ class TextToSpeechService
         private string              $elevenLabsApiKey  = '',
         private string              $elevenLabsVoiceId = '',
         private ?HttpClientInterface $httpClient        = null,
+        private ?LoggerInterface     $logger            = null,
     ) {}
 
     public function setVoice(string $voice): void
@@ -114,8 +116,31 @@ class TextToSpeechService
         match ($this->provider) {
             'elevenlabs' => $this->generateVoiceElevenLabs($text, $path),
             'piper'      => $this->generateVoicePiper($text, $path),
-            default      => $this->generateVoiceEdgeTts($text, $path),
+            default      => $this->generateVoiceEdgeTtsWithFallback($text, $path),
         };
+    }
+
+    // edge-tts depends on an unofficial Microsoft endpoint that breaks now and then
+    // (e.g. 403 on outdated client versions), so fall back to local piper when possible.
+    private function generateVoiceEdgeTtsWithFallback(string $text, string $path): void
+    {
+        try {
+            $this->generateVoiceEdgeTts($text, $path);
+        } catch (\RuntimeException $edgeError) {
+            $modelAbs = $this->projectDir . '/' . ltrim($this->piperModel, '/');
+            if ($this->piperModel === '' || !is_file($modelAbs)) {
+                throw $edgeError;
+            }
+
+            $lines = preg_split('/\R/', trim($edgeError->getMessage()));
+            $this->logger?->warning('edge-tts mislukt, terugvallen op piper: ' . end($lines));
+
+            try {
+                $this->generateVoicePiper($text, $path);
+            } catch (\RuntimeException $piperError) {
+                throw new \RuntimeException($edgeError->getMessage() . "\n\nPiper fallback ook mislukt: " . $piperError->getMessage(), 0, $piperError);
+            }
+        }
     }
 
     private function generateVoiceElevenLabs(string $text, string $path): void
