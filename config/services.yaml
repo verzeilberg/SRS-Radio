@@ -87,6 +87,7 @@ services:
             $piperModel:          '%env(DJ_PIPER_MODEL)%'
             $elevenLabsApiKey:    '%env(ELEVENLABS_API_KEY)%'
             $elevenLabsVoiceId:   '%env(ELEVENLABS_VOICE_ID)%'
+            $language:            '%env(DJ_LANGUAGE)%'
 
     App\Service\RadioStateService:
         arguments:

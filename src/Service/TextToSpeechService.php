@@ -9,7 +9,7 @@ class TextToSpeechService
     public function __construct(
         private string              $projectDir,
         private string              $serverBaseUrl,
-        private string              $provider          = 'edge', // edge | piper | elevenlabs
+        private string              $provider          = 'edge', // edge | piper | elevenlabs | gtts
         private string              $voice             = 'nl-NL-MaartenNeural',
         private string              $bedFile           = '',
         private float               $bedVol            = 0.20,
@@ -18,6 +18,7 @@ class TextToSpeechService
         private string              $elevenLabsVoiceId = '',
         private ?HttpClientInterface $httpClient        = null,
         private ?LoggerInterface     $logger            = null,
+        private string              $language          = 'en',
     ) {}
 
     public function setVoice(string $voice): void
@@ -116,31 +117,47 @@ class TextToSpeechService
         match ($this->provider) {
             'elevenlabs' => $this->generateVoiceElevenLabs($text, $path),
             'piper'      => $this->generateVoicePiper($text, $path),
+            'gtts'       => $this->generateVoiceGtts($text, $path),
             default      => $this->generateVoiceEdgeTtsWithFallback($text, $path),
         };
     }
 
     // edge-tts depends on an unofficial Microsoft endpoint that breaks now and then
-    // (e.g. 403 on outdated client versions), so fall back to local piper when possible.
+    // (e.g. 403 on outdated client versions), so fall back to piper (if a model is
+    // configured) and then gTTS (if gtts-cli is installed).
     private function generateVoiceEdgeTtsWithFallback(string $text, string $path): void
     {
+        $fallbacks = [];
+        if ($this->piperModel !== '' && is_file($this->projectDir . '/' . ltrim($this->piperModel, '/'))) {
+            $fallbacks['piper'] = fn() => $this->generateVoicePiper($text, $path);
+        }
+        if ($this->findBinary('gtts-cli') !== null) {
+            $fallbacks['gtts'] = fn() => $this->generateVoiceGtts($text, $path);
+        }
+
         try {
             $this->generateVoiceEdgeTts($text, $path);
+            return;
         } catch (\RuntimeException $edgeError) {
-            $modelAbs = $this->projectDir . '/' . ltrim($this->piperModel, '/');
-            if ($this->piperModel === '' || !is_file($modelAbs)) {
+            if (!$fallbacks) {
                 throw $edgeError;
             }
+            $error = $edgeError;
+        }
 
-            $lines = preg_split('/\R/', trim($edgeError->getMessage()));
-            $this->logger?->warning('edge-tts mislukt, terugvallen op piper: ' . end($lines));
+        foreach ($fallbacks as $name => $generate) {
+            $lines = preg_split('/\R/', trim($error->getMessage()));
+            $this->logger?->warning('TTS mislukt, terugvallen op ' . $name . ': ' . end($lines));
 
             try {
-                $this->generateVoicePiper($text, $path);
-            } catch (\RuntimeException $piperError) {
-                throw new \RuntimeException($edgeError->getMessage() . "\n\nPiper fallback ook mislukt: " . $piperError->getMessage(), 0, $piperError);
+                $generate();
+                return;
+            } catch (\RuntimeException $fallbackError) {
+                $error = new \RuntimeException($error->getMessage() . "\n\n" . $name . ' fallback ook mislukt: ' . $fallbackError->getMessage(), 0, $fallbackError);
             }
         }
+
+        throw $error;
     }
 
     private function generateVoiceElevenLabs(string $text, string $path): void
@@ -191,7 +208,7 @@ class TextToSpeechService
         $wavPath  = substr($mp3Path, 0, -4) . '.wav';
 
         $cmd    = 'echo ' . escapeshellarg($text)
-                . ' | ' . $this->findBinary('piper') . ' --model ' . escapeshellarg($modelAbs)
+                . ' | ' . ($this->findBinary('piper') ?? 'piper') . ' --model ' . escapeshellarg($modelAbs)
                 . ' --output_file ' . escapeshellarg($wavPath) . ' 2>&1';
         $output = shell_exec($cmd);
 
@@ -214,7 +231,7 @@ class TextToSpeechService
 
     private function generateVoiceEdgeTts(string $text, string $path): void
     {
-        $cmd    = $this->findBinary('edge-tts') . ' --voice ' . escapeshellarg($this->voice)
+        $cmd    = ($this->findBinary('edge-tts') ?? 'edge-tts') . ' --voice ' . escapeshellarg($this->voice)
                 . ' --text ' . escapeshellarg($text)
                 . ' --write-media ' . escapeshellarg($path) . ' 2>&1';
         $output = shell_exec($cmd);
@@ -225,9 +242,25 @@ class TextToSpeechService
         }
     }
 
+    // Google Translate voice via gTTS (pipx install gTTS). Light enough for a Pi 3,
+    // unlike piper, but needs internet.
+    private function generateVoiceGtts(string $text, string $path): void
+    {
+        $cmd    = ($this->findBinary('gtts-cli') ?? 'gtts-cli')
+                . ' --lang ' . escapeshellarg($this->language ?: 'en')
+                . ' --output ' . escapeshellarg($path)
+                . ' ' . escapeshellarg($text) . ' 2>&1';
+        $output = shell_exec($cmd);
+
+        if (!file_exists($path) || filesize($path) === 0) {
+            @unlink($path);
+            throw new \RuntimeException('gtts mislukt: ' . ($output ?? 'geen output'));
+        }
+    }
+
     // The radio may run under a different user or a minimal PATH (e.g. started from
     // the admin page), so also look in the pipx/pip --user dirs of every user.
-    private function findBinary(string $name): string
+    private function findBinary(string $name): ?string
     {
         $candidates = array_merge(
             ['/usr/local/bin/' . $name],
@@ -239,7 +272,9 @@ class TextToSpeechService
             }
         }
 
-        return $name;
+        $found = trim((string) shell_exec('command -v ' . escapeshellarg($name) . ' 2>/dev/null'));
+
+        return $found !== '' ? escapeshellarg($found) : null;
     }
 
     public function generateWithBed(string $text, string $bedPath, float $bedVol = 0.35): string
