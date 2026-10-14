@@ -191,7 +191,7 @@ class TextToSpeechService
         $wavPath  = substr($mp3Path, 0, -4) . '.wav';
 
         $cmd    = 'echo ' . escapeshellarg($text)
-                . ' | piper --model ' . escapeshellarg($modelAbs)
+                . ' | ' . $this->findBinary('piper') . ' --model ' . escapeshellarg($modelAbs)
                 . ' --output_file ' . escapeshellarg($wavPath) . ' 2>&1';
         $output = shell_exec($cmd);
 
@@ -214,11 +214,7 @@ class TextToSpeechService
 
     private function generateVoiceEdgeTts(string $text, string $path): void
     {
-        $edgeTts = 'edge-tts';
-        foreach (['/home/sander/.local/bin/edge-tts', '/usr/local/bin/edge-tts'] as $p) {
-            if (is_executable($p)) { $edgeTts = $p; break; }
-        }
-        $cmd    = $edgeTts . ' --voice ' . escapeshellarg($this->voice)
+        $cmd    = $this->findBinary('edge-tts') . ' --voice ' . escapeshellarg($this->voice)
                 . ' --text ' . escapeshellarg($text)
                 . ' --write-media ' . escapeshellarg($path) . ' 2>&1';
         $output = shell_exec($cmd);
@@ -227,6 +223,23 @@ class TextToSpeechService
             @unlink($path);
             throw new \RuntimeException('edge-tts mislukt: ' . ($output ?? 'geen output'));
         }
+    }
+
+    // The radio may run under a different user or a minimal PATH (e.g. started from
+    // the admin page), so also look in the pipx/pip --user dirs of every user.
+    private function findBinary(string $name): string
+    {
+        $candidates = array_merge(
+            ['/usr/local/bin/' . $name],
+            glob('/home/*/.local/bin/' . $name) ?: [],
+        );
+        foreach ($candidates as $p) {
+            if (is_executable($p)) {
+                return escapeshellarg($p);
+            }
+        }
+
+        return $name;
     }
 
     public function generateWithBed(string $text, string $bedPath, float $bedVol = 0.35): string
